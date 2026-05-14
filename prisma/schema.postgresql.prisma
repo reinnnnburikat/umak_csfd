@@ -1,0 +1,242 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  passwordHash    String
+  fullName        String
+  givenName       String?
+  surname         String?
+  middleName      String?
+  extensionName   String?
+  studentNumber   String?
+  collegeInstitute String?
+  yearLevel       String?
+  department      String?  // For staff/admin roles (e.g., "Discipline Coordinator")
+  sex             String?
+  profileImageUrl String?  // URL to profile picture
+  role            String   @default("student_assistant") // superadmin, admin, staff, student_assistant, makati_internship
+  status          String   @default("active")  // active, deactivated
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  announcements      Announcement[]
+  notifications      Notification[]
+  auditLogsPerformed AuditLog[]
+  cmsUpdates         CmsContent[]
+  emailTemplateUpdates EmailTemplate[]
+
+  @@index([role, status])
+}
+
+model ServiceRequest {
+  id              String   @id @default(cuid())
+  requestNumber   String   @unique
+  requestType     String   // GMC, UER, CDC, CAC
+  requestorName   String
+  requestorEmail  String
+  classification  String?  // for GMC: currently_enrolled, graduate_alumni, non_completer; for UER: working_student, office_org_event, ojt, college_org_shirt, other
+  status          String   @default("Submitted") // Submitted, For Review, For Issuance, Issued, Hold, Rejected
+  formData        String   // JSON string
+  remarks         String?
+  reviewedByName  String?
+  reviewedAt      DateTime?
+  issuedByName    String?
+  issuedAt        DateTime?
+  trackingToken   String   @unique
+  fileUrls        String?  // JSON string - array of file URLs
+  certificatePdfUrl String?  // URL to generated GMC certificate PDF
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([requestType])
+}
+
+model Complaint {
+  id               String   @id @default(cuid())
+  complaintNumber  String   @unique
+  complainants     String   // JSON string - array of complainant objects
+  respondents      String   // JSON string - array of respondent objects
+  category         String?  // assigned by staff: MAJOR, MINOR, OTHERS
+  caseStatus       String   @default("Pending") // Pending, Under Review, Resolved, Dismissed, Reopened
+  subject          String
+  complaintCategory String?
+  violationType    String?
+  description      String
+  desiredOutcome   String?
+  dateOfIncident   String?
+  location         String?
+  isOngoing        String?  // "Yes" or "No"
+  howOften         String?
+  witnesses        String?
+  previousReports  String?
+  fileUrls         String?  // JSON string - array of file URLs (evidence)
+  encodedByName    String?
+  trackingToken    String   @unique
+  filedCase        String?  // Official filed case declared by admin/director with complainant
+  modifications    String?  // JSON string - array of version snapshots
+  progressUpdates  String?  // JSON string - array of progress objects
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([caseStatus])
+}
+
+model DisciplinaryCase {
+  id               String   @id @default(cuid())
+  studentName      String
+  studentNumber    String
+  sex              String?
+  collegeInstitute String?
+  umakEmail        String?
+  violationType    String
+  violationCategory String  // MINOR, MAJOR, LATE_FACULTY_EVALUATION, LATE_ACCESS_ROG, LATE_PAYMENT, OTHER
+  otherCategorySpecified String? // Text field for "Other" category specification
+  description      String?
+  actionTaken      String?
+  offenseCount     Int      @default(1) // Offense count: MINOR=per same violationType, MAJOR=across all major, LATE_*/OTHER=per same violationCategory
+  status           String   @default("First Offense")
+  dateOfInfraction String?
+  fileUrls         String?  // JSON string - array of file URLs
+  officerName      String?
+  isCleared        Boolean  @default(false) // Whether this offense has been cleared
+  clearedByName    String?  // Who cleared the offense
+  clearedAt        DateTime? // When it was cleared
+  clearReason      String?  // Reason for clearing
+  isEndorsed       Boolean  @default(false) // Whether student is endorsed for Admin/Community Service
+  endorsedByName   String?
+  endorsedAt       DateTime?
+  endorsementNotes String?
+  // Community Service Deployment fields
+  deploymentStatus          String?   // Pending, Under AIP, Settled
+  deploymentOffice          String?   // Office/College/Institute/Center
+  deploymentDateFrom        DateTime? // Start of deployment
+  deploymentDateTo          DateTime? // End of deployment
+  deploymentHoursToRender   String?   // Hours to render (string to allow decimal like "8.5")
+  deploymentAssessmentHours String?   // Assessment hours
+  deploymentRemarks         String?   // Remarks about deployment
+  aipExpectedOutput         String?   // Expected output/deliverables for AIP
+  settlementDate            DateTime? // When the community service was completed/settled
+  settledByName             String?   // Who marked as settled
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  offenseHistory   OffenseHistory[]
+
+  @@index([studentNumber, isCleared])
+  @@index([violationCategory])
+  @@index([status])
+}
+
+model OffenseHistory {
+  id                 String   @id @default(cuid())
+  studentNumber      String   // Student number for quick lookup
+  violationType      String
+  violationCategory  String   // MINOR, MAJOR, LATE_FACULTY_EVALUATION, LATE_ACCESS_ROG, LATE_PAYMENT, OTHER
+  otherCategorySpecified String?
+  offenseCount       Int      // The offense count at the time of this offense
+  disciplinaryCaseId String?  // Link to the disciplinary case
+  dateOfInfraction   String?
+  isCleared          Boolean  @default(false)
+  clearedByName      String?
+  clearedAt          DateTime?
+  clearReason        String?
+  createdAt          DateTime @default(now())
+
+  disciplinaryCase   DisciplinaryCase? @relation(fields: [disciplinaryCaseId], references: [id], onDelete: Cascade)
+
+  @@index([studentNumber])
+  @@index([disciplinaryCaseId])
+}
+
+model Announcement {
+  id          String    @id @default(cuid())
+  title       String
+  body        String
+  postedFrom  DateTime
+  postedTo    DateTime
+  visibility  String    @default("All") // All, Students, Staff
+  isPinned    Boolean   @default(false)
+  fileUrl     String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  createdBy   User?     @relation(fields: [createdById], references: [id])
+}
+
+model Notification {
+  id            String   @id @default(cuid())
+  userId        String
+  type          String
+  message       String
+  isRead        Boolean  @default(false)
+  referenceId   String?
+  referenceType String?  // service_request, complaint, announcement
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  performedBy    String?
+  performerName  String?
+  performerRole  String?
+  actionType     String
+  module         String
+  recordId       String?
+  oldValue       String?  // JSON string
+  newValue       String?  // JSON string
+  remarks        String?
+  ipAddress      String?
+  createdAt      DateTime @default(now())
+
+  performer      User?    @relation(fields: [performedBy], references: [id])
+}
+
+model CmsContent {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  label     String
+  value     String
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  updater   User?    @relation(fields: [updatedBy], references: [id])
+}
+
+model EmailTemplate {
+  id        String   @id @default(cuid())
+  eventType String   @unique
+  subject   String
+  bodyHtml  String
+  variables String?  // JSON string
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+
+  updater   User?    @relation(fields: [updatedBy], references: [id])
+}
+
+model ManagedList {
+  id         String   @id @default(cuid())
+  listType   String   // violation_minor, violation_major, violation_other, complaint_category, college_institute, faq, office_hours, requirements_*
+  label      String
+  value      String?  // optional different value
+  isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  extra      String?  // JSON string for additional data
+  createdById String?
+  createdAt  DateTime @default(now())
+}

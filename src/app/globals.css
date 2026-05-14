@@ -1,0 +1,683 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* ── Core semantic colors ── */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-metropolis), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono);
+
+  /* ── Card ── */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  /* ── Popover ── */
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  /* ── Primary (UMak Royal Blue) ── */
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  /* ── Secondary ── */
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  /* ── Muted ── */
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  /* ── Accent (UMak Gold) ── */
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  /* ── Destructive ── */
+  --color-destructive: var(--destructive);
+
+  /* ── Border / Input / Ring ── */
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* ── Chart ── */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* ── Sidebar ── */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* ── UMak Brand Tokens ── */
+  --color-umak-blue: var(--umak-blue);
+  --color-umak-gold: var(--umak-gold);
+  --color-umak-blue-hover: var(--umak-blue-hover);
+  --color-umak-gold-hover: var(--umak-gold-hover);
+  --color-umak-navy: var(--umak-navy);
+
+  /* ── Status Tokens ── */
+  --color-status-major: var(--status-major);
+  --color-status-minor: var(--status-minor);
+  --color-status-others: var(--status-others);
+  --color-status-approved: var(--status-approved);
+  --color-status-hold: var(--status-hold);
+  --color-status-pending: var(--status-pending);
+  --color-status-overdue: var(--status-overdue);
+  --color-status-due: var(--status-due);
+  --color-status-new: var(--status-new);
+
+  /* ── Radius ── */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LIGHT MODE  (public pages default)
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --radius: 0.75rem;
+
+  /* Core */
+  --background: #f8f9fa;
+  --foreground: #1a1a2e;
+
+  /* Card */
+  --card: #ffffff;
+  --card-foreground: #1a1a2e;
+
+  /* Popover */
+  --popover: #ffffff;
+  --popover-foreground: #1a1a2e;
+
+  /* Primary – UMak Royal Blue */
+  --primary: #111c4e;
+  --primary-foreground: #ffffff;
+
+  /* Secondary */
+  --secondary: #e8eaf6;
+  --secondary-foreground: #111c4e;
+
+  /* Muted */
+  --muted: #f1f3f5;
+  --muted-foreground: #6b7280;
+
+  /* Accent – UMak Gold */
+  --accent: #ffc400;
+  --accent-foreground: #1a1a2e;
+
+  /* Destructive */
+  --destructive: #E53E3E;
+
+  /* Border / Input / Ring */
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #111c4e;
+
+  /* Chart */
+  --chart-1: #111c4e;
+  --chart-2: #ffc400;
+  --chart-3: #4299E1;
+  --chart-4: #38A169;
+  --chart-5: #E53E3E;
+
+  /* Sidebar */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a2e;
+  --sidebar-primary: #111c4e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8eaf6;
+  --sidebar-accent-foreground: #111c4e;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #111c4e;
+
+  /* ── UMak Brand ── */
+  --umak-blue: #111c4e;
+  --umak-blue-hover: #1a2d6b;
+  --umak-gold: #ffc400;
+  --umak-gold-hover: #e6b800;
+  --umak-navy: #0a1229;
+
+  /* ── Status Colors ── */
+  --status-major: #E53E3E;
+  --status-minor: #ED8936;
+  --status-others: #ffc400;
+  --status-approved: #38A169;
+  --status-hold: #718096;
+  --status-pending: #4299E1;
+  --status-overdue: #E53E3E;
+  --status-due: #ED8936;
+  --status-new: #38A169;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DARK MODE  (internal pages default)
+   ═══════════════════════════════════════════════════════════ */
+.dark {
+  /* Core */
+  --background: #0a0e27;
+  --foreground: #e8eaf6;
+
+  /* Card */
+  --card: #111638;
+  --card-foreground: #e8eaf6;
+
+  /* Popover */
+  --popover: #111638;
+  --popover-foreground: #e8eaf6;
+
+  /* Primary – Deeper blue for white-text contrast (WCAG AA ≥ 4.5:1) */
+  --primary: #4a5db8;
+  --primary-foreground: #ffffff;
+
+  /* Secondary */
+  --secondary: #1a1f4e;
+  --secondary-foreground: #c5cae9;
+
+  /* Muted */
+  --muted: #1a1f4e;
+  --muted-foreground: #9fa8da;
+
+  /* Accent – UMak Gold (brighter for dark) */
+  --accent: #ffc400;
+  --accent-foreground: #1a1a2e;
+
+  /* Destructive */
+  --destructive: #fc8181;
+
+  /* Border / Input / Ring */
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #4a5db8;
+
+  /* Chart */
+  --chart-1: #4a5db8;
+  --chart-2: #ffc400;
+  --chart-3: #63b3ed;
+  --chart-4: #68d391;
+  --chart-5: #fc8181;
+
+  /* Sidebar */
+  --sidebar: #0d1133;
+  --sidebar-foreground: #e8eaf6;
+  --sidebar-primary: #4a5db8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1a1f4e;
+  --sidebar-accent-foreground: #c5cae9;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #4a5db8;
+
+  /* ── UMak Brand (dark variants – deeper for contrast) ── */
+  --umak-blue: #4a5db8;
+  --umak-blue-hover: #5a6ec5;
+  --umak-gold: #ffc400;
+  --umak-gold-hover: #ffe44d;
+  --umak-navy: #0a1229;
+
+  /* ── Status Colors (brighter for dark bg) ── */
+  --status-major: #fc8181;
+  --status-minor: #fbd38d;
+  --status-others: #FFD700;
+  --status-approved: #68d391;
+  --status-hold: #a0aec0;
+  --status-pending: #63b3ed;
+  --status-overdue: #fc8181;
+  --status-due: #fbd38d;
+  --status-new: #68d391;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BASE LAYER
+   ═══════════════════════════════════════════════════════════ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Smooth transitions on theme change */
+  html {
+    transition: color-scheme 0.3s ease;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  html:not(.dark) {
+    color-scheme: light;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GLASSMORPHISM UTILITIES
+   ═══════════════════════════════════════════════════════════ */
+.glass {
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.dark .glass {
+  background: rgba(17, 22, 56, 0.65);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.glass-nav {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow:
+    0 1px 12px rgba(0, 0, 0, 0.04),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.dark .glass-nav {
+  background: rgba(10, 14, 39, 0.78);
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 1px 12px rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GRADIENT UTILITIES
+   ═══════════════════════════════════════════════════════════ */
+.gradient-primary {
+  background: linear-gradient(135deg, #111c4e 0%, #1a2d6b 50%, #1a3a7a 100%);
+}
+
+.gradient-gold {
+  background: linear-gradient(135deg, #ffc400 0%, #ffd633 50%, #ffe44d 100%);
+}
+
+.gradient-dark {
+  background: linear-gradient(135deg, #0a0e27 0%, #111638 50%, #1a1f4e 100%);
+}
+
+.gradient-royal {
+  background: linear-gradient(135deg, #1a2d6b 0%, #111c4e 50%, #1a2859 100%);
+}
+
+.gradient-sunset {
+  background: linear-gradient(135deg, #111c4e 0%, #ffc400 100%);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   BRAND COLOR UTILITIES
+   ═══════════════════════════════════════════════════════════ */
+.umak-blue {
+  color: var(--umak-blue);
+}
+
+.umak-blue-bg {
+  background-color: var(--umak-blue);
+}
+
+.umak-gold {
+  color: var(--umak-gold);
+}
+
+.umak-gold-bg {
+  background-color: var(--umak-gold);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STATUS BADGE UTILITIES
+   ═══════════════════════════════════════════════════════════ */
+.status-major {
+  color: var(--status-major);
+  background: color-mix(in srgb, var(--status-major) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-major) 25%, transparent);
+}
+
+.status-minor {
+  color: var(--status-minor);
+  background: color-mix(in srgb, var(--status-minor) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-minor) 25%, transparent);
+}
+
+.status-others {
+  color: var(--status-others);
+  background: color-mix(in srgb, var(--status-others) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-others) 25%, transparent);
+}
+
+.status-approved {
+  color: var(--status-approved);
+  background: color-mix(in srgb, var(--status-approved) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-approved) 25%, transparent);
+}
+
+.status-hold {
+  color: var(--status-hold);
+  background: color-mix(in srgb, var(--status-hold) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-hold) 25%, transparent);
+}
+
+.status-pending {
+  color: var(--status-pending);
+  background: color-mix(in srgb, var(--status-pending) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-pending) 25%, transparent);
+}
+
+.status-overdue {
+  color: var(--status-overdue);
+  background: color-mix(in srgb, var(--status-overdue) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-overdue) 25%, transparent);
+}
+
+.status-due {
+  color: var(--status-due);
+  background: color-mix(in srgb, var(--status-due) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-due) 25%, transparent);
+}
+
+.status-new {
+  color: var(--status-new);
+  background: color-mix(in srgb, var(--status-new) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--status-new) 25%, transparent);
+}
+
+.status-released {
+  color: #16a34a;
+  background: color-mix(in srgb, #22c55e 12%, transparent);
+  border: 1px solid color-mix(in srgb, #22c55e 25%, transparent);
+}
+
+.dark .status-released {
+  color: #4ade80;
+  background: color-mix(in srgb, #4ade80 12%, transparent);
+  border: 1px solid color-mix(in srgb, #4ade80 25%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   INTERACTION UTILITIES
+   ═══════════════════════════════════════════════════════════ */
+.card-hover {
+  transition:
+    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+}
+
+.dark .card-hover:hover {
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.4),
+    0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Glow Effects ── */
+.glow-blue {
+  box-shadow:
+    0 0 20px rgba(17, 28, 78, 0.15),
+    0 0 40px rgba(17, 28, 78, 0.08);
+}
+
+.dark .glow-blue {
+  box-shadow:
+    0 0 20px rgba(92, 107, 192, 0.2),
+    0 0 40px rgba(92, 107, 192, 0.1);
+}
+
+.glow-gold {
+  box-shadow:
+    0 0 20px rgba(255, 196, 0, 0.15),
+    0 0 40px rgba(255, 196, 0, 0.08);
+}
+
+.dark .glow-gold {
+  box-shadow:
+    0 0 20px rgba(255, 215, 0, 0.2),
+    0 0 40px rgba(255, 215, 0, 0.1);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ANIMATIONS
+   ═══════════════════════════════════════════════════════════ */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes bellPulse {
+  0% {
+    transform: rotate(0deg);
+  }
+  15% {
+    transform: rotate(14deg);
+  }
+  30% {
+    transform: rotate(-14deg);
+  }
+  45% {
+    transform: rotate(8deg);
+  }
+  60% {
+    transform: rotate(-8deg);
+  }
+  75% {
+    transform: rotate(2deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-down {
+  animation: slideDown 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+.animate-bell-pulse {
+  animation: bellPulse 0.6s ease-in-out;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* Staggered animation delays */
+.delay-75 { animation-delay: 75ms; }
+.delay-100 { animation-delay: 100ms; }
+.delay-150 { animation-delay: 150ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* ═══════════════════════════════════════════════════════════
+   CUSTOM SCROLLBAR
+   ═══════════════════════════════════════════════════════════ */
+/* Webkit browsers (Chrome, Edge, Safari) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(17, 28, 78, 0.18);
+  border-radius: 100px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(17, 28, 78, 0.32);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(92, 107, 192, 0.2);
+  border-radius: 100px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(92, 107, 192, 0.35);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(17, 28, 78, 0.18) transparent;
+}
+
+.dark * {
+  scrollbar-color: rgba(92, 107, 192, 0.2) transparent;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SELECTION STYLING
+   ═══════════════════════════════════════════════════════════ */
+::selection {
+  background: rgba(17, 28, 78, 0.18);
+  color: inherit;
+}
+
+.dark ::selection {
+  background: rgba(92, 107, 192, 0.25);
+  color: inherit;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MISC REFINEMENTS
+   ═══════════════════════════════════════════════════════════ */
+/* Smooth focus rings */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+  transition: outline-offset 0.15s ease;
+}
+
+/* Subtle text rendering */
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.025em;
+  font-weight: 600;
+}
+
+/* Remove default button focus outline, use focus-visible instead */
+button:focus:not(:focus-visible) {
+  outline: none;
+}
