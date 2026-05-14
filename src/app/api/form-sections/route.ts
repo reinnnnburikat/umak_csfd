@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit';
+import { revalidatePath } from 'next/cache';
 
 // ── Auth guard ──────────────────────────────────────────────────────────
 const STAFF_ROLES = ['staff', 'admin', 'superadmin', 'student_assistant', 'makati_internship'];
@@ -104,6 +105,7 @@ export async function POST(request: NextRequest) {
       remarks: `Created form section: ${title} (${phase})`,
     });
 
+    revalidatePath('/api/complaint-form/config');
     return NextResponse.json({ data: section }, { status: 201 });
   } catch (error) {
     console.error('Failed to create form section:', error);
@@ -163,6 +165,7 @@ export async function PATCH(request: NextRequest) {
       remarks: `Updated form section: ${updated.title} (${updated.phase})`,
     });
 
+    revalidatePath('/api/complaint-form/config');
     return NextResponse.json({ data: updated });
   } catch (error) {
     console.error('Failed to update form section:', error);
@@ -215,6 +218,7 @@ export async function DELETE(request: NextRequest) {
       remarks: `Deleted form section "${existing.title}" (${existing.phase}) with ${existing._count.questions} questions (moved to unsectioned)`,
     });
 
+    revalidatePath('/api/complaint-form/config');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete form section:', error);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit';
+import { revalidatePath } from 'next/cache';
 
 // ── PATCH /api/form-questions/reorder ───────────────────────────────────
 // Reorder questions within a phase. Superadmin only.
@@ -50,6 +51,8 @@ export async function PATCH(request: NextRequest) {
     );
 
     await db.$transaction(updates);
+
+    revalidatePath('/api/complaint-form/config');
 
     await createAuditLog({
       performedBy: session.user.id,

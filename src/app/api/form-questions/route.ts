@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSession } from '@/lib/session';
 import { createAuditLog } from '@/lib/audit';
+import { revalidatePath } from 'next/cache';
 
 // ── Auth guard ──────────────────────────────────────────────────────────
 async function requireSuperadmin() {
@@ -115,6 +116,7 @@ export async function POST(request: NextRequest) {
       remarks: `Created form question: ${label} (${phase})`,
     });
 
+    revalidatePath('/api/complaint-form/config');
     return NextResponse.json({ data: question }, { status: 201 });
   } catch (error) {
     console.error('Failed to create form question:', error);
@@ -179,6 +181,7 @@ export async function PATCH(request: NextRequest) {
       remarks: `Updated form question: ${updated.label} (${updated.phase})`,
     });
 
+    revalidatePath('/api/complaint-form/config');
     return NextResponse.json({ data: updated });
   } catch (error) {
     console.error('Failed to update form question:', error);
@@ -228,6 +231,7 @@ export async function DELETE(request: NextRequest) {
       remarks: `Permanently deleted form question: ${existing.label} (${existing.phase})`,
     });
 
+    revalidatePath('/api/complaint-form/config');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete form question:', error);

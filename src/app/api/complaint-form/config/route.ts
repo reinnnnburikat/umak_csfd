@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { revalidatePath } from 'next/cache';
 
 // ── GET /api/complaint-form/config ──────────────────────────────────────
 // Public endpoint — returns active form configuration grouped by phase.
@@ -48,18 +49,11 @@ export async function GET() {
       phaseSections[s.phase].push(s);
     }
 
-    return NextResponse.json(
-      {
-        version: 1,
-        phases,
-        sections: phaseSections,
-      },
-      {
-        headers: {
-          'Cache-Control': 's-maxage=60, stale-while-revalidate=120',
-        },
-      }
-    );
+    return NextResponse.json({
+      version: 1,
+      phases,
+      sections: phaseSections,
+    });
   } catch (error) {
     console.error('Failed to fetch complaint form config:', error);
     return NextResponse.json(

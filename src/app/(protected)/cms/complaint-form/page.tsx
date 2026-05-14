@@ -76,7 +76,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCenter,
+  rectIntersection,
   useDroppable,
 } from '@dnd-kit/core';
 import {
@@ -606,9 +606,9 @@ export default function ComplaintFormBuilderPage() {
   );
 
   // ── Fetch questions ──────────────────────────────────────────────────
-  const fetchQuestions = useCallback(async () => {
+  const fetchQuestions = useCallback(async (showLoader = true) => {
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
       const res = await fetch(`/api/form-questions?phase=${activeTab}`);
       if (res.ok) {
         const json = await res.json();
@@ -619,7 +619,7 @@ export default function ComplaintFormBuilderPage() {
     } catch {
       toast.error('Failed to load questions');
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   }, [activeTab]);
 
@@ -628,14 +628,14 @@ export default function ComplaintFormBuilderPage() {
   const isSectionCapable = sectionCapablePhases.includes(activeTab);
 
   // ── Fetch sections ───────────────────────────────────────────────────
-  const fetchSections = useCallback(async () => {
+  const fetchSections = useCallback(async (showLoader = true) => {
     // Only fetch for phases that support sections
     if (!sectionCapablePhases.includes(activeTab)) {
       setSections([]);
       return;
     }
     try {
-      setSectionLoading(true);
+      if (showLoader) setSectionLoading(true);
       const res = await fetch(`/api/form-sections?phase=${activeTab}`);
       if (res.ok) {
         const json = await res.json();
@@ -649,7 +649,7 @@ export default function ComplaintFormBuilderPage() {
     } catch {
       toast.error('Failed to load sections');
     } finally {
-      setSectionLoading(false);
+      if (showLoader) setSectionLoading(false);
     }
   }, [activeTab]);
 
@@ -726,8 +726,8 @@ export default function ComplaintFormBuilderPage() {
       }
 
       setSectionDialogOpen(false);
-      fetchSections();
-      fetchQuestions();
+      fetchQuestions(false);
+      fetchSections(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save section');
     }
@@ -742,8 +742,8 @@ export default function ComplaintFormBuilderPage() {
       });
       if (!res.ok) throw new Error('Failed to delete section');
       toast.success('Section deleted successfully');
-      fetchSections();
-      fetchQuestions();
+      fetchSections(false);
+      fetchQuestions(false);
     } catch {
       toast.error('Failed to delete section');
     }
@@ -758,7 +758,7 @@ export default function ComplaintFormBuilderPage() {
       });
       if (!res.ok) throw new Error();
       toast.success(`Section ${section.isActive ? 'deactivated' : 'activated'} successfully`);
-      fetchSections();
+      fetchSections(false);
     } catch {
       toast.error('Failed to toggle section status');
     }
@@ -777,14 +777,22 @@ export default function ComplaintFormBuilderPage() {
     setSections(reordered);
 
     try {
-      // Update sortOrder for each section
-      for (let i = 0; i < reordered.length; i++) {
-        await fetch('/api/form-sections', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: reordered[i].id, sortOrder: i }),
-        });
-      }
+      await handleBatchReorderSections(reordered);
+    } catch {
+      toast.error('Failed to reorder sections');
+      fetchSections();
+    }
+  };
+
+  // ── Batch reorder sections API ────────────────────────────────────
+  const handleBatchReorderSections = async (reordered: FormSection[]) => {
+    try {
+      const res = await fetch('/api/form-sections/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionIds: reordered.map(s => s.id) }),
+      });
+      if (!res.ok) throw new Error();
     } catch {
       toast.error('Failed to reorder sections');
       fetchSections();
@@ -794,20 +802,33 @@ export default function ComplaintFormBuilderPage() {
   // ── Move question to section ─────────────────────────────────────────
   const handleMoveQuestionToSection = async (questionId: string, targetSectionId: string | null) => {
     try {
+      // Calculate the sortOrder for the target location (end of section or unsectioned)
+      let targetSortOrder = 0;
+      if (targetSectionId) {
+        const sectionQs = questions.filter(q => q.sectionId === targetSectionId);
+        targetSortOrder = sectionQs.length > 0 ? Math.max(...sectionQs.map(q => q.sortOrder)) + 1 : 0;
+      } else {
+        const unsectionedQs = questions.filter(q => !q.sectionId);
+        targetSortOrder = unsectionedQs.length > 0 ? Math.max(...unsectionedQs.map(q => q.sortOrder)) + 1 : 0;
+      }
+
       const res = await fetch('/api/form-questions', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: questionId,
           sectionId: targetSectionId || null,
+          sortOrder: targetSortOrder,
         }),
       });
       if (!res.ok) throw new Error();
       toast.success(targetSectionId ? 'Question moved to section' : 'Question moved to unsectioned');
-      fetchQuestions();
-      fetchSections();
+      fetchQuestions(false);
+      fetchSections(false);
     } catch {
       toast.error('Failed to move question');
+      fetchQuestions();
+      fetchSections();
     }
   };
 
@@ -947,8 +968,8 @@ export default function ComplaintFormBuilderPage() {
 
       toast.success(editingQuestion ? 'Question updated successfully' : 'Question added successfully');
       setDialogOpen(false);
-      fetchQuestions();
-      if (isSectionCapable) fetchSections();
+      fetchQuestions(false);
+      if (isSectionCapable) fetchSections(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save question');
     } finally {
@@ -966,7 +987,7 @@ export default function ComplaintFormBuilderPage() {
       });
       if (!res.ok) throw new Error();
       toast.success(`Question ${q.isActive ? 'deactivated' : 'activated'} successfully`);
-      fetchQuestions();
+      fetchQuestions(false);
     } catch {
       toast.error('Failed to toggle status');
     }
@@ -983,8 +1004,8 @@ export default function ComplaintFormBuilderPage() {
       });
       if (!res.ok) throw new Error();
       toast.success('Question deleted successfully');
-      fetchQuestions();
-      if (isSectionCapable) fetchSections();
+      fetchQuestions(false);
+      if (isSectionCapable) fetchSections(false);
     } catch {
       toast.error('Failed to delete question');
     } finally {
@@ -1123,7 +1144,7 @@ export default function ComplaintFormBuilderPage() {
         }
       }
     }
-  }, [questions, activeTab, fetchQuestions]);
+  }, [questions, activeTab, fetchQuestions, handleMoveQuestionToSection]);
 
   // ── Determine which fields to show ───────────────────────────────────
   const showPlaceholder = ['short_text', 'long_text', 'number', 'email'].includes(form.fieldType);
@@ -1163,7 +1184,7 @@ export default function ComplaintFormBuilderPage() {
     return (
       <DndContext
         sensors={sensors}
-        collisionDetection={closestCenter}
+        collisionDetection={rectIntersection}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
