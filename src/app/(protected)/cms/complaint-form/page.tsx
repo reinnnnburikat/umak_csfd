@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, type ReactNode } from 'react';
 import {
   Plus,
   Pencil,
@@ -68,6 +68,24 @@ import {
 } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { ChoicesEditor } from '@/components/cms/choices-editor';
+import {
+  DndContext,
+  DragOverlay,
+  DragEndEvent,
+  DragStartEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  useDroppable,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // ── Types ────────────────────────────────────────────────────────────────
 interface FormSection {
@@ -383,6 +401,180 @@ function parseValidation(validation: string | null): Partial<Pick<QuestionFormDa
 
 // parseChoices removed — ChoicesEditor handles raw choices value directly
 
+// ── Sortable Question Item (DnD) ─────────────────────────────────────────
+interface SortableQuestionItemProps {
+  question: FormQuestion;
+  index: number;
+  siblings: FormQuestion[];
+  sections: FormSection[];
+  onReorderInSection: (siblings: FormQuestion[], index: number, direction: 'up' | 'down') => void;
+  onMoveToSection: (questionId: string, sectionId: string | null) => void;
+  onToggleActive: (q: FormQuestion) => void;
+  onEdit: (q: FormQuestion) => void;
+  onDelete: (id: string) => void;
+}
+
+function SortableQuestionItem({
+  question,
+  index,
+  siblings,
+  sections,
+  onReorderInSection,
+  onMoveToSection,
+  onToggleActive,
+  onEdit,
+  onDelete,
+}: SortableQuestionItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: question.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+    zIndex: isDragging ? 50 : 'auto' as const,
+    position: 'relative' as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <div className={`flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-muted/40 transition-colors group ${!question.isActive ? 'opacity-50' : ''} ${isDragging ? 'shadow-lg ring-2 ring-umak-gold/40 bg-muted/60' : ''}`}>
+        {/* Drag handle */}
+        <button
+          type="button"
+          className="cursor-grab active:cursor-grabbing touch-none shrink-0 rounded p-0.5 hover:bg-muted/60 transition-colors"
+          {...listeners}
+        >
+          <GripVertical className="size-4 text-muted-foreground/50 hover:text-muted-foreground/80 transition-colors" />
+        </button>
+
+        {/* Reorder within section (accessibility fallback) */}
+        <div className="flex flex-col gap-0.5 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-5 text-muted-foreground/40"
+            onClick={() => onReorderInSection(siblings, index, 'up')}
+            disabled={index === 0}
+          >
+            <ChevronUp className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-5 text-muted-foreground/40"
+            onClick={() => onReorderInSection(siblings, index, 'down')}
+            disabled={index === siblings.length - 1}
+          >
+            <ChevronDown className="size-3" />
+          </Button>
+        </div>
+
+        {/* Type icon + badge */}
+        <div className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 shrink-0 ${TYPE_BADGE_COLORS[question.fieldType] || ''}`}>
+          {getFieldIcon(question.fieldType)}
+          <span className="text-[10px] font-medium">{formatFieldType(question.fieldType)}</span>
+        </div>
+
+        {/* Label */}
+        <div className="flex items-center gap-1 min-w-0 flex-1">
+          <span className="text-sm font-medium truncate">{question.label}</span>
+          {question.required && <span className="text-red-500 dark:text-red-400 shrink-0">*</span>}
+        </div>
+
+        {/* Move to section dropdown (mobile fallback) */}
+        <Select
+          value={question.sectionId || '__none__'}
+          onValueChange={(val) => onMoveToSection(question.id, val === '__none__' ? null : val)}
+        >
+          <SelectTrigger className="w-[130px] h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+            <FolderOpen className="size-3 mr-1 shrink-0" />
+            <SelectValue placeholder="Move to..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">No Section</SelectItem>
+            {sections.map(s => (
+              <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1 shrink-0">
+          <Switch
+            checked={question.isActive}
+            onCheckedChange={() => onToggleActive(question)}
+            className="scale-[0.75]"
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={() => onEdit(question)}
+            title="Edit"
+          >
+            <Pencil className="size-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity"
+            onClick={() => onDelete(question.id)}
+            title="Delete"
+          >
+            <Trash2 className="size-3" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Drag Overlay Item ────────────────────────────────────────────────────
+function DragOverlayItem({ question }: { question: FormQuestion }) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-card border border-border/50 shadow-xl ring-2 ring-umak-gold/40 max-w-sm">
+      <GripVertical className="size-4 text-umak-gold shrink-0" />
+      <div className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 shrink-0 ${TYPE_BADGE_COLORS[question.fieldType] || ''}`}>
+        {getFieldIcon(question.fieldType)}
+        <span className="text-[10px] font-medium">{formatFieldType(question.fieldType)}</span>
+      </div>
+      <div className="flex items-center gap-1 min-w-0 flex-1">
+        <span className="text-sm font-medium truncate">{question.label}</span>
+        {question.required && <span className="text-red-500 shrink-0">*</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── Section Drop Target ──────────────────────────────────────────────────
+function SectionDropTarget({ sectionId, children, highlight }: { sectionId: string; children: ReactNode; highlight?: boolean }) {
+  const { setNodeRef, isOver: isDroppableOver } = useDroppable({ id: `section-drop:${sectionId}` });
+  const showHighlight = isDroppableOver || highlight;
+  return (
+    <div ref={setNodeRef} className={`transition-all rounded-xl ${showHighlight ? 'ring-2 ring-umak-gold/60 ring-offset-2 ring-offset-background' : ''}`}>
+      {children}
+    </div>
+  );
+}
+
+// ── Unsectioned Drop Target ──────────────────────────────────────────────
+function UnsectionedDropTarget({ children, hasItems }: { children: ReactNode; hasItems: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: 'unsectioned-drop' });
+  const showHighlight = isOver && !hasItems;
+  return (
+    <div ref={setNodeRef} className={`transition-all ${showHighlight ? 'ring-2 ring-umak-gold/60 ring-offset-2 ring-offset-background rounded-xl' : ''}`}>
+      {children}
+    </div>
+  );
+}
+
 // ── Component ────────────────────────────────────────────────────────────
 export default function ComplaintFormBuilderPage() {
   const [activeTab, setActiveTab] = useState('instructions');
@@ -406,6 +598,12 @@ export default function ComplaintFormBuilderPage() {
   const [newSectionTitle, setNewSectionTitle] = useState('');
   const [newSectionDesc, setNewSectionDesc] = useState('');
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+
+  // ── Drag-and-drop state ─────────────────────────────────────────────
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
 
   // ── Fetch questions ──────────────────────────────────────────────────
   const fetchQuestions = useCallback(async () => {
@@ -677,7 +875,10 @@ export default function ComplaintFormBuilderPage() {
       allowMultiple: q.allowMultiple,
       defaultValue: q.defaultValue || '',
       sectionId: q.sectionId || '',
-      ...parsedValidation,
+      validationMin: parsedValidation.validationMin || '',
+      validationMax: parsedValidation.validationMax || '',
+      validationPattern: parsedValidation.validationPattern || '',
+      validationMessage: parsedValidation.validationMessage || '',
     });
     setDialogOpen(true);
   };
@@ -828,6 +1029,95 @@ export default function ComplaintFormBuilderPage() {
     return map;
   }, [questions]);
 
+  // ── Sorted sections ──────────────────────────────────────────────────
+  const sortedSections = useMemo(() =>
+    [...sections].sort((a, b) => a.sortOrder - b.sortOrder),
+    [sections],
+  );
+
+  // ── DnD: Active question for drag overlay ────────────────────────────
+  const activeQuestion = useMemo(() =>
+    activeId ? questions.find(q => q.id === activeId) ?? null : null,
+    [activeId, questions],
+  );
+
+  // ── DnD: Handle drag start ──────────────────────────────────────────
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(String(event.active.id));
+  }, []);
+
+  // ── DnD: Handle drag end ────────────────────────────────────────────
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveId(null);
+
+    if (!over || active.id === over.id) return;
+
+    const activeQ = questions.find(q => q.id === String(active.id));
+    if (!activeQ) return;
+
+    const overIdStr = String(over.id);
+
+    // Case 1: Dropped on a section drop target (section-drop:xxx)
+    if (overIdStr.startsWith('section-drop:')) {
+      const targetSectionId = overIdStr.replace('section-drop:', '');
+      if (activeQ.sectionId !== targetSectionId) {
+        await handleMoveQuestionToSection(activeQ.id, targetSectionId);
+      }
+      return;
+    }
+
+    // Case 2: Dropped on unsectioned drop target
+    if (overIdStr === 'unsectioned-drop') {
+      if (activeQ.sectionId !== null) {
+        await handleMoveQuestionToSection(activeQ.id, null);
+      }
+      return;
+    }
+
+    // Case 3: Dropped on another question
+    const overQ = questions.find(q => q.id === overIdStr);
+    if (!overQ) return;
+
+    const activeSectionId = activeQ.sectionId;
+    const overSectionId = overQ.sectionId;
+
+    if (activeSectionId !== overSectionId) {
+      // Cross-section: move question to new section
+      await handleMoveQuestionToSection(activeQ.id, overSectionId);
+    } else {
+      // Same section: reorder within section
+      const containerQuestions = activeSectionId
+        ? questions.filter(q => q.sectionId === activeSectionId)
+        : questions.filter(q => !q.sectionId);
+      const sorted = [...containerQuestions].sort((a, b) => a.sortOrder - b.sortOrder);
+      const oldIndex = sorted.findIndex(q => q.id === String(active.id));
+      const newIndex = sorted.findIndex(q => q.id === overIdStr);
+
+      if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+        const reordered = arrayMove(sorted, oldIndex, newIndex);
+
+        // Optimistic update
+        setQuestions(prev => {
+          const idsInContainer = new Set(reordered.map(q => q.id));
+          return [...prev.filter(q => !idsInContainer.has(q.id)), ...reordered];
+        });
+
+        try {
+          const res = await fetch('/api/form-questions/reorder', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phase: activeTab, questionIds: reordered.map(q => q.id) }),
+          });
+          if (!res.ok) throw new Error();
+        } catch {
+          toast.error('Failed to reorder questions');
+          fetchQuestions();
+        }
+      }
+    }
+  }, [questions, activeTab, fetchQuestions]);
+
   // ── Determine which fields to show ───────────────────────────────────
   const showPlaceholder = ['short_text', 'long_text', 'number', 'email'].includes(form.fieldType);
   const showChoices = ['dropdown', 'radio', 'checkbox'].includes(form.fieldType);
@@ -836,94 +1126,6 @@ export default function ComplaintFormBuilderPage() {
 
   // ── Current phase meta ───────────────────────────────────────────────
   const currentPhase = PHASES.find(p => p.value === activeTab);
-
-  // ── Render compact question row (inside section) ─────────────────────
-  const renderCompactQuestionRow = (q: FormQuestion, index: number, siblings: FormQuestion[]) => (
-    <div
-      key={q.id}
-      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-muted/40 transition-colors group ${!q.isActive ? 'opacity-50' : ''}`}
-    >
-      {/* Reorder within section */}
-      <div className="flex flex-col gap-0.5 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-5 text-muted-foreground/40"
-          onClick={() => handleReorderInSection(siblings, index, 'up')}
-          disabled={index === 0}
-        >
-          <ChevronUp className="size-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-5 text-muted-foreground/40"
-          onClick={() => handleReorderInSection(siblings, index, 'down')}
-          disabled={index === siblings.length - 1}
-        >
-          <ChevronDown className="size-3" />
-        </Button>
-      </div>
-
-      <GripVertical className="size-3.5 text-muted-foreground/30 shrink-0" />
-
-      {/* Type icon + badge */}
-      <div className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 shrink-0 ${TYPE_BADGE_COLORS[q.fieldType] || ''}`}>
-        {getFieldIcon(q.fieldType)}
-        <span className="text-[10px] font-medium">{formatFieldType(q.fieldType)}</span>
-      </div>
-
-      {/* Label */}
-      <div className="flex items-center gap-1 min-w-0 flex-1">
-        <span className="text-sm font-medium truncate">{q.label}</span>
-        {q.required && <span className="text-red-500 dark:text-red-400 shrink-0">*</span>}
-      </div>
-
-      {/* Move to section dropdown */}
-      <Select
-        value={q.sectionId || '__none__'}
-        onValueChange={(val) => handleMoveQuestionToSection(q.id, val === '__none__' ? null : val)}
-      >
-        <SelectTrigger className="w-[130px] h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
-          <FolderOpen className="size-3 mr-1 shrink-0" />
-          <SelectValue placeholder="Move to..." />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="__none__">No Section</SelectItem>
-          {sections.map(s => (
-            <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Actions */}
-      <div className="flex items-center gap-1 shrink-0">
-        <Switch
-          checked={q.isActive}
-          onCheckedChange={() => handleToggleActive(q)}
-          className="scale-[0.75]"
-        />
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={() => handleOpenEdit(q)}
-          title="Edit"
-        >
-          <Pencil className="size-3" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity"
-          onClick={() => setDeleteId(q.id)}
-          title="Delete"
-        >
-          <Trash2 className="size-3" />
-        </Button>
-      </div>
-    </div>
-  );
 
   // ── Render sectionized view ──────────────────────────────────────────
   const renderSectionizedView = () => {
@@ -952,192 +1154,240 @@ export default function ComplaintFormBuilderPage() {
     }
 
     return (
-      <div className="space-y-4">
-        {/* Unsectioned questions */}
-        {unsectionedQuestions.length > 0 && (
-          <div className="border border-border/50 rounded-xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b border-border/50">
-              <div className="flex items-center gap-2">
-                <FolderOpen className="size-4 text-muted-foreground" />
-                <span className="text-sm font-semibold text-muted-foreground">Unsectioned Questions</span>
-                <Badge variant="secondary" className="text-xs ml-1">{unsectionedQuestions.length}</Badge>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs gap-1 text-muted-foreground hover:text-foreground"
-                onClick={() => handleOpenAdd()}
-              >
-                <Plus className="size-3" />
-                Add Question
-              </Button>
-            </div>
-            <div className="divide-y divide-border/30 p-1">
-              {unsectionedQuestions.map((q, idx) =>
-                renderCompactQuestionRow(q, idx, unsectionedQuestions)
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Sections */}
-        {sections.sort((a, b) => a.sortOrder - b.sortOrder).map((section, sectionIndex) => {
-          const sectionQuestions = (questionsBySection[section.id] || []).sort(
-            (a, b) => a.sortOrder - b.sortOrder
-          );
-          const isExpanded = expandedSections.has(section.id);
-
-          return (
-            <Collapsible
-              key={section.id}
-              open={isExpanded}
-              onOpenChange={() => toggleSectionExpand(section.id)}
-            >
-              <div className={`border rounded-xl overflow-hidden transition-all ${!section.isActive ? 'opacity-60' : 'border-border/50'}`}>
-                {/* Gradient top border */}
-                <div className="h-0.5 bg-gradient-to-r from-umak-gold/60 via-umak-gold/30 to-transparent" />
-
-                {/* Section header */}
-                <div className="flex items-center gap-3 px-4 py-3 bg-card">
-                  {/* Expand toggle */}
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="size-7 shrink-0">
-                      <ChevronRight className={`size-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                    </Button>
-                  </CollapsibleTrigger>
-
-                  {/* Section icon + title */}
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <FolderOpen className="size-4 text-umak-gold shrink-0" />
-                    <span className="text-sm font-semibold truncate">{section.title}</span>
-                    {section.description && (
-                      <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[200px]">
-                        — {section.description}
-                      </span>
-                    )}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="space-y-4">
+          {/* Unsectioned questions */}
+          <UnsectionedDropTarget hasItems={unsectionedQuestions.length > 0}>
+            {unsectionedQuestions.length > 0 ? (
+              <div className="border border-border/50 rounded-xl overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b border-border/50">
+                  <div className="flex items-center gap-2">
+                    <FolderOpen className="size-4 text-muted-foreground" />
+                    <span className="text-sm font-semibold text-muted-foreground">Unsectioned Questions</span>
+                    <Badge variant="secondary" className="text-xs ml-1">{unsectionedQuestions.length}</Badge>
                   </div>
-
-                  {/* Question count badge */}
-                  <Badge variant="secondary" className="text-xs shrink-0">
-                    {sectionQuestions.length} {sectionQuestions.length === 1 ? 'question' : 'questions'}
-                  </Badge>
-
-                  {/* Status badge */}
-                  <Badge className={`text-[10px] shrink-0 ${section.isActive ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : 'bg-gray-500/15 text-gray-500 border-gray-500/30 dark:bg-gray-500/20 dark:text-gray-400 dark:border-gray-500/40'}`}>
-                    {section.isActive ? 'Active' : 'Inactive'}
-                  </Badge>
-
-                  {/* Section actions */}
-                  <div className="flex items-center gap-0.5 shrink-0">
-                    {/* Reorder up */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7"
-                      onClick={(e) => { e.stopPropagation(); handleReorderSection(sectionIndex, 'up'); }}
-                      disabled={sectionIndex === 0}
-                      title="Move section up"
-                    >
-                      <ChevronUp className="size-3.5" />
-                    </Button>
-                    {/* Reorder down */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7"
-                      onClick={(e) => { e.stopPropagation(); handleReorderSection(sectionIndex, 'down'); }}
-                      disabled={sectionIndex === sections.length - 1}
-                      title="Move section down"
-                    >
-                      <ChevronDown className="size-3.5" />
-                    </Button>
-                    {/* Toggle active */}
-                    <Switch
-                      checked={section.isActive}
-                      onCheckedChange={() => handleToggleSectionActive(section)}
-                      className="scale-[0.8] ml-1"
-                    />
-                    {/* Edit section */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7"
-                      onClick={(e) => { e.stopPropagation(); handleOpenEditSection(section); }}
-                      title="Edit section"
-                    >
-                      <Pencil className="size-3" />
-                    </Button>
-                    {/* Delete section */}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-7 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (confirm(`Delete section "${section.title}"? Questions will become unsectioned.`)) {
-                          handleDeleteSection(section.id);
-                        }
-                      }}
-                      title="Delete section"
-                    >
-                      <Trash2 className="size-3" />
-                    </Button>
-                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs gap-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => handleOpenAdd()}
+                  >
+                    <Plus className="size-3" />
+                    Add Question
+                  </Button>
                 </div>
+                <SortableContext items={unsectionedQuestions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                  <div className="divide-y divide-border/30 p-1">
+                    {unsectionedQuestions.map((q, idx) => (
+                      <SortableQuestionItem
+                        key={q.id}
+                        question={q}
+                        index={idx}
+                        siblings={unsectionedQuestions}
+                        sections={sections}
+                        onReorderInSection={handleReorderInSection}
+                        onMoveToSection={handleMoveQuestionToSection}
+                        onToggleActive={handleToggleActive}
+                        onEdit={handleOpenEdit}
+                        onDelete={setDeleteId}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </div>
+            ) : (
+              <div className="border border-dashed border-muted-foreground/30 rounded-xl px-4 py-3 text-center">
+                <p className="text-xs text-muted-foreground/70">Drag questions here to remove them from sections</p>
+              </div>
+            )}
+          </UnsectionedDropTarget>
 
-                {/* Section content — questions */}
-                <CollapsibleContent>
-                  <div className="border-t border-border/30">
-                    {sectionQuestions.length === 0 ? (
-                      <div className="px-4 py-6 text-center">
-                        <p className="text-xs text-muted-foreground">No questions in this section</p>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="mt-2 text-xs gap-1"
-                          onClick={() => handleOpenAdd(section.id)}
-                        >
-                          <Plus className="size-3" />
-                          Add Question
+          {/* Sections */}
+          {sortedSections.map((section, sectionIndex) => {
+            const sectionQuestions = (questionsBySection[section.id] || []).sort(
+              (a, b) => a.sortOrder - b.sortOrder
+            );
+            const isExpanded = expandedSections.has(section.id);
+
+            return (
+              <SectionDropTarget key={section.id} sectionId={section.id} highlight={false}>
+                <Collapsible
+                  open={isExpanded}
+                  onOpenChange={() => toggleSectionExpand(section.id)}
+                >
+                  <div className={`border rounded-xl overflow-hidden transition-all ${!section.isActive ? 'opacity-60' : 'border-border/50'}`}>
+                    {/* Gradient top border */}
+                    <div className="h-0.5 bg-gradient-to-r from-umak-gold/60 via-umak-gold/30 to-transparent" />
+
+                    {/* Section header */}
+                    <div className="flex items-center gap-3 px-4 py-3 bg-card">
+                      {/* Expand toggle */}
+                      <CollapsibleTrigger asChild>
+                        <Button variant="ghost" size="icon" className="size-7 shrink-0">
+                          <ChevronRight className={`size-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                         </Button>
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-border/20 p-1">
-                        {sectionQuestions.map((q, idx) =>
-                          renderCompactQuestionRow(q, idx, sectionQuestions)
+                      </CollapsibleTrigger>
+
+                      {/* Section icon + title */}
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <FolderOpen className="size-4 text-umak-gold shrink-0" />
+                        <span className="text-sm font-semibold truncate">{section.title}</span>
+                        {section.description && (
+                          <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[200px]">
+                            — {section.description}
+                          </span>
                         )}
                       </div>
-                    )}
 
-                    {/* Add question button */}
-                    <div className="px-4 py-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full border border-dashed border-muted-foreground/30 rounded-lg text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:border-muted-foreground/50"
-                        onClick={() => handleOpenAdd(section.id)}
-                      >
-                        <Plus className="size-3" />
-                        Add Question to &quot;{section.title}&quot;
-                      </Button>
+                      {/* Question count badge */}
+                      <Badge variant="secondary" className="text-xs shrink-0">
+                        {sectionQuestions.length} {sectionQuestions.length === 1 ? 'question' : 'questions'}
+                      </Badge>
+
+                      {/* Status badge */}
+                      <Badge className={`text-[10px] shrink-0 ${section.isActive ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : 'bg-gray-500/15 text-gray-500 border-gray-500/30 dark:bg-gray-500/20 dark:text-gray-400 dark:border-gray-500/40'}`}>
+                        {section.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+
+                      {/* Section actions */}
+                      <div className="flex items-center gap-0.5 shrink-0">
+                        {/* Reorder up */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={(e) => { e.stopPropagation(); handleReorderSection(sectionIndex, 'up'); }}
+                          disabled={sectionIndex === 0}
+                          title="Move section up"
+                        >
+                          <ChevronUp className="size-3.5" />
+                        </Button>
+                        {/* Reorder down */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={(e) => { e.stopPropagation(); handleReorderSection(sectionIndex, 'down'); }}
+                          disabled={sectionIndex === sortedSections.length - 1}
+                          title="Move section down"
+                        >
+                          <ChevronDown className="size-3.5" />
+                        </Button>
+                        {/* Toggle active */}
+                        <Switch
+                          checked={section.isActive}
+                          onCheckedChange={() => handleToggleSectionActive(section)}
+                          className="scale-[0.8] ml-1"
+                        />
+                        {/* Edit section */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7"
+                          onClick={(e) => { e.stopPropagation(); handleOpenEditSection(section); }}
+                          title="Edit section"
+                        >
+                          <Pencil className="size-3" />
+                        </Button>
+                        {/* Delete section */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-7 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Delete section "${section.title}"? Questions will become unsectioned.`)) {
+                              handleDeleteSection(section.id);
+                            }
+                          }}
+                          title="Delete section"
+                        >
+                          <Trash2 className="size-3" />
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CollapsibleContent>
-              </div>
-            </Collapsible>
-          );
-        })}
 
-        {/* Add Section button */}
-        <Button
-          variant="ghost"
-          className="w-full border border-dashed border-muted-foreground/30 rounded-xl py-6 gap-2 text-sm text-muted-foreground hover:text-foreground hover:border-umak-gold/50 hover:bg-umak-gold/5"
-          onClick={() => handleOpenAddSection()}
-        >
-          <FolderPlus className="size-4" />
-          Add Section
-        </Button>
-      </div>
+                    {/* Section content — questions */}
+                    <CollapsibleContent>
+                      <div className="border-t border-border/30">
+                        {sectionQuestions.length === 0 ? (
+                          <div className="px-4 py-6 text-center">
+                            <p className="text-xs text-muted-foreground">No questions in this section</p>
+                            <p className="text-xs text-muted-foreground/60 mt-1">Drag questions here or</p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="mt-2 text-xs gap-1"
+                              onClick={() => handleOpenAdd(section.id)}
+                            >
+                              <Plus className="size-3" />
+                              Add Question
+                            </Button>
+                          </div>
+                        ) : (
+                          <SortableContext items={sectionQuestions.map(q => q.id)} strategy={verticalListSortingStrategy}>
+                            <div className="divide-y divide-border/20 p-1">
+                              {sectionQuestions.map((q, idx) => (
+                                <SortableQuestionItem
+                                  key={q.id}
+                                  question={q}
+                                  index={idx}
+                                  siblings={sectionQuestions}
+                                  sections={sections}
+                                  onReorderInSection={handleReorderInSection}
+                                  onMoveToSection={handleMoveQuestionToSection}
+                                  onToggleActive={handleToggleActive}
+                                  onEdit={handleOpenEdit}
+                                  onDelete={setDeleteId}
+                                />
+                              ))}
+                            </div>
+                          </SortableContext>
+                        )}
+
+                        {/* Add question button */}
+                        <div className="px-4 py-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full border border-dashed border-muted-foreground/30 rounded-lg text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:border-muted-foreground/50"
+                            onClick={() => handleOpenAdd(section.id)}
+                          >
+                            <Plus className="size-3" />
+                            Add Question to &quot;{section.title}&quot;
+                          </Button>
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+              </SectionDropTarget>
+            );
+          })}
+
+          {/* Add Section button */}
+          <Button
+            variant="ghost"
+            className="w-full border border-dashed border-muted-foreground/30 rounded-xl py-6 gap-2 text-sm text-muted-foreground hover:text-foreground hover:border-umak-gold/50 hover:bg-umak-gold/5"
+            onClick={() => handleOpenAddSection()}
+          >
+            <FolderPlus className="size-4" />
+            Add Section
+          </Button>
+        </div>
+
+        {/* Drag Overlay */}
+        <DragOverlay dropAnimation={null}>
+          {activeId && activeQuestion && (
+            <DragOverlayItem question={activeQuestion} />
+          )}
+        </DragOverlay>
+      </DndContext>
     );
   };
 

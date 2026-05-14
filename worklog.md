@@ -139,3 +139,86 @@ Stage Summary:
 - 7 sections created/updated, 12 questions assigned, 2 stale sections deleted, 1 old section header question deletion confirmed
 - Seed script is idempotent: safe to re-run (checks existence before creating, updates if exists)
 - DB state verified clean via direct query
+
+---
+Task ID: 4-5-6-7
+Agent: Public Form Rewrite Agent
+Task: Rewrite renderStep4 (Complaint Details) and renderStep5 (Review) to be fully dynamic based on FormSection records, fix layout crowding and false validation error
+
+Work Log:
+- **Verified FormConfig type already has `sections` field** (Record<string, FormSection[]>) — no changes needed
+- **Verified config fetch already stores sections** — no changes needed
+- **Rewrote renderStep4 (lines 1223-1452):**
+  - Replaced flat `sectionGradients` array with rich `sectionStyles` array containing per-section icon, gradient, bg, and text color (FileText for Core, CalendarDays for Timeline, Paperclip for Evidence, etc.)
+  - Separated file_upload questions from regular questions within each section for cleaner rendering
+  - Added early return `if (sectionQuestions.length === 0) return null` for empty sections
+  - Changed violation type detection from `isViolationTypeQuestion(q)` (which checked `dynamic:violation_`) to `q.id === 'violationType'` per task spec
+  - Changed main wrapper spacing from `space-y-6` to `space-y-8` for better breathing room
+  - Changed CardContent spacing from `space-y-5` to `space-y-6` for consistent padding
+  - Moved evidence warning notice from inside each file-upload section to always show at the bottom
+  - Renamed unsectioned fallback card title from "ADDITIONAL QUESTIONS" to "OTHER DETAILS" with muted styling
+  - Renamed section header icon from gray-500 ClipboardList to muted-foreground ClipboardList with bg-muted styling
+- **Rewrote renderStep5 (lines 1454-1818):**
+  - Added per-section colored dots (`sectionDotColors`) and text colors (`sectionTextColors`) arrays matching the 7-section palette
+  - Improved person fields renderer: now shows `{q.label}: {value}` format for all non-name fields instead of just raw values
+  - Simplified person field rendering: removed the `slice(0, 4)` / `slice(4)` split into two rows — all fields now show in a single flex-wrap row with labels
+  - Grouped detail questions by section using `questionsBySection` Map for the review
+  - Added unsectioned fallback section ("Other Details") in review mode for questions not assigned to any FormSection
+  - Replaced inline `renderDetailSections()` function with `renderDetailSection(section, sIdx)` per-section renderer
+- **Fixed false validation error:**
+  - Added conditional skip in `validateDetailsPhase`: when `q.id === 'howOften'` and `answers['isOngoing'] !== 'Yes'`, the field is no longer validated as required
+  - This prevents the "How Often is required" error when the user selects "No" for "Is this ongoing?"
+- **Layout fixes:**
+  - renderStep4 wrapper: `space-y-6` → `space-y-8`
+  - renderStep4 CardContent: `space-y-5` → `space-y-6`
+  - renderStep4 unsectioned fallback CardContent: `space-y-5` → `space-y-6`
+- ESLint passes with zero errors
+
+Stage Summary:
+- 1 file modified: `src/app/(public)/complaint/page.tsx`
+- renderStep4 fully dynamic with per-section icons/colors and better spacing
+- renderStep5 fully dynamic with per-section colors, labeled person fields, and unsectioned fallback
+- False validation for howOften fixed (skips when isOngoing !== 'Yes')
+- Evidence warning moved to bottom of form (always visible, not per-section)
+- No imports changed — all needed icons (FileText, CalendarDays, Paperclip, ClipboardList) were already imported
+
+---
+Task ID: 8
+Agent: CMS Drag-and-Drop Agent
+Task: Add drag-and-drop functionality to the CMS Complaint Form builder
+
+Work Log:
+- Added `@dnd-kit/core`, `@dnd-kit/sortable`, and `@dnd-kit/utilities` imports
+- Created `SortableQuestionItem` component (module-level, outside main component) that wraps each question row with `useSortable` hook for drag-and-drop
+- Created `DragOverlayItem` component that renders a floating card showing the dragged question's type badge and label
+- Created `SectionDropTarget` component using `useDroppable` with `section-drop:{id}` IDs so questions can be dropped on section headers/empty sections
+- Created `UnsectionedDropTarget` component using `useDroppable` with `unsectioned-drop` ID so questions can be dragged out of sections
+- Added `activeId` state and `PointerSensor` with 5px distance activation constraint to prevent accidental drags
+- Added `handleDragStart` and `handleDragEnd` callbacks inside the main component
+- `handleDragEnd` handles 3 cases:
+  1. Dropped on section drop target (`section-drop:xxx`) → moves question to that section
+  2. Dropped on unsectioned drop target → removes question from its section
+  3. Dropped on another question → if same section: reorder with `arrayMove` + API call; if different section: move to new section
+- Wrapped the entire sectionized view with `DndContext` (closestCenter collision detection)
+- Added `SortableContext` with `verticalListSortingStrategy` around each question group (unsectioned area, each section's question list)
+- Added `DragOverlay` with `dropAnimation={null}` for clean visual feedback during drag
+- Replaced the old `renderCompactQuestionRow` function with `SortableQuestionItem` component usage
+- Drag handle uses a `<button>` with `cursor-grab active:cursor-grabbing touch-none` and `{...listeners}` from useSortable
+- Existing up/down reorder buttons and move-to-section dropdown are kept as accessibility/mobile fallbacks
+- Fixed pre-existing TS error: spread of `parseValidation()` result (partial type) into `setForm()` replaced with explicit property assignment with `|| ''` defaults
+- "Add Section" button was already present and prominent in both the header area and at the bottom of the sectionized view
+- ESLint passes with zero errors; TypeScript compilation passes for the modified file
+
+Stage Summary:
+- 1 file modified: `src/app/(protected)/cms/complaint-form/page.tsx`
+- ~230 lines added: new components (SortableQuestionItem, DragOverlayItem, SectionDropTarget, UnsectionedDropTarget) + DnD state/handlers
+- ~90 lines removed: old `renderCompactQuestionRow` function
+- Net addition: ~140 lines
+- Features implemented:
+  1. Questions can be dragged within their section to reorder
+  2. Questions can be dragged across sections (moved to new section on drop)
+  3. Questions can be dragged from sections to the "Unsectioned" area
+  4. Questions can be dragged from "Unsectioned" into sections by dropping on section headers or other questions
+  5. Section headers act as drop targets (using useDroppable) — highlighted with gold ring when a question is dragged over them
+  6. DragOverlay shows a floating card of the dragged question during drag
+  7. Original item becomes semi-transparent during drag (opacity: 0.3)

@@ -713,6 +713,8 @@ export default function ComplaintPage() {
 
     for (const q of questions) {
       if (q.fieldType === 'section_header' || !q.required) continue;
+      // Skip conditional fields that are hidden
+      if (q.id === 'howOften' && answers['isOngoing'] !== 'Yes') continue;
       const val = answers[q.id];
       if (!val || val.trim() === '') {
         fieldErrors[q.id] = `${q.label} is required`;
@@ -1227,15 +1229,15 @@ export default function ComplaintPage() {
     // Sort sections by sortOrder
     const sortedSections = [...detailSections].sort((a, b) => a.sortOrder - b.sortOrder);
 
-    // 7 gradient color styles cycling through section index
-    const sectionGradients = [
-      'from-umak-blue to-umak-gold',
-      'from-amber-500 to-amber-400',
-      'from-teal-500 to-teal-400',
-      'from-purple-500 to-purple-400',
-      'from-emerald-500 to-emerald-400',
-      'from-rose-500 to-rose-400',
-      'from-cyan-500 to-cyan-400',
+    // Per-section icon, gradient, bg, and text styles
+    const sectionStyles = [
+      { gradient: 'from-umak-blue to-umak-gold', bg: 'bg-umak-blue/10 dark:bg-umak-gold/10', text: 'text-umak-blue dark:text-umak-gold', icon: FileText },
+      { gradient: 'from-amber-500 to-amber-400', bg: 'bg-amber-500/10 dark:bg-amber-400/10', text: 'text-amber-600 dark:text-amber-400', icon: CalendarDays },
+      { gradient: 'from-teal-500 to-teal-400', bg: 'bg-teal-500/10 dark:bg-teal-400/10', text: 'text-teal-600 dark:text-teal-400', icon: Paperclip },
+      { gradient: 'from-purple-500 to-purple-400', bg: 'bg-purple-500/10 dark:bg-purple-400/10', text: 'text-purple-600 dark:text-purple-400', icon: ClipboardList },
+      { gradient: 'from-emerald-500 to-emerald-400', bg: 'bg-emerald-500/10 dark:bg-emerald-400/10', text: 'text-emerald-600 dark:text-emerald-400', icon: FileText },
+      { gradient: 'from-rose-500 to-rose-400', bg: 'bg-rose-500/10 dark:bg-rose-400/10', text: 'text-rose-600 dark:text-rose-400', icon: FileText },
+      { gradient: 'from-cyan-500 to-cyan-400', bg: 'bg-cyan-500/10 dark:bg-cyan-400/10', text: 'text-cyan-600 dark:text-cyan-400', icon: FileText },
     ];
 
     // Collect all section IDs for filtering unsectioned questions
@@ -1249,10 +1251,6 @@ export default function ComplaintPage() {
       ([key]) => !key.includes('.') && key !== 'submit'
     );
 
-    // Helper: check if a question uses violation type dynamic choices
-    const isViolationTypeQuestion = (q: FormQuestion) =>
-      q.choices?.startsWith('dynamic:violation_');
-
     // Helper: determine field width class
     const getFieldGridClass = (q: FormQuestion) => {
       if (q.fieldType === 'long_text' || q.fieldType === 'file_upload') return 'col-span-1 sm:col-span-2';
@@ -1260,28 +1258,32 @@ export default function ComplaintPage() {
     };
 
     return (
-      <div className="animate-fade-in space-y-6">
+      <div className="animate-fade-in space-y-8">
         {sortedSections.map((section, sIdx) => {
-          const gradient = sectionGradients[sIdx % sectionGradients.length];
+          const style = sectionStyles[sIdx % sectionStyles.length];
+          const Icon = style.icon;
 
           // Get questions belonging to this section (non-section_header, sorted by sortOrder)
           const sectionQuestions = questions
             .filter(q => q.sectionId === section.id && q.fieldType !== 'section_header')
             .sort((a, b) => a.sortOrder - b.sortOrder);
 
-          // Check if this section has a file_upload question
-          const hasFileUpload = sectionQuestions.some(q => q.fieldType === 'file_upload');
+          // Separate file_upload questions from regular questions
+          const fileQuestions = sectionQuestions.filter(q => q.fieldType === 'file_upload');
+          const regularQuestions = sectionQuestions.filter(q => q.fieldType !== 'file_upload');
+
+          if (sectionQuestions.length === 0) return null;
 
           return (
             <Card key={section.id} className="border-border/50 overflow-hidden">
-              <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
+              <div className={`h-1.5 bg-gradient-to-r ${style.gradient}`} />
               <CardHeader>
                 <div className="flex items-center gap-3">
-                  <div className="size-10 rounded-xl bg-umak-blue/10 dark:bg-umak-gold/10 flex items-center justify-center">
-                    <FileText className="size-5 text-umak-blue dark:text-umak-gold" />
+                  <div className={`size-10 rounded-xl ${style.bg} flex items-center justify-center`}>
+                    <Icon className={`size-5 ${style.text}`} />
                   </div>
                   <div>
-                    <CardTitle className="text-lg font-semibold text-umak-blue dark:text-umak-gold">
+                    <CardTitle className={`text-lg font-semibold ${style.text}`}>
                       {section.title.toUpperCase()}
                     </CardTitle>
                     {section.description && (
@@ -1290,27 +1292,11 @@ export default function ComplaintPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="space-y-5">
+              <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {sectionQuestions.map(q => {
-                    // File upload — render FileUpload component (full width)
-                    if (q.fieldType === 'file_upload') {
-                      return (
-                        <div key={q.id} className="col-span-1 sm:col-span-2">
-                          <FileUpload
-                            files={formData.files}
-                            onFilesChange={(files) => setFormData(prev => ({ ...prev, files }))}
-                            maxFileSize={10 * 1024 * 1024}
-                            maxFiles={5}
-                            label={q.label || 'Supporting Evidence (Optional)'}
-                            hint={q.helpText || 'PDF, DOC, DOCX, JPG, PNG (max 10MB each, up to 5 files)'}
-                          />
-                        </div>
-                      );
-                    }
-
-                    // Violation type — use special dropdown (detect by dynamic:violation_ choices)
-                    if (isViolationTypeQuestion(q)) {
+                  {regularQuestions.map(q => {
+                    // Violation type — use special dropdown
+                    if (q.id === 'violationType') {
                       return (
                         <div key={q.id} className="col-span-1 sm:col-span-2">
                           <ViolationTypeDropdown
@@ -1323,7 +1309,7 @@ export default function ComplaintPage() {
                       );
                     }
 
-                    // howOften — only show when isOngoing is "Yes" (Involvement section)
+                    // howOften — only show when isOngoing is "Yes"
                     if (q.id === 'howOften' && answers['isOngoing'] !== 'Yes') {
                       return null;
                     }
@@ -1335,7 +1321,7 @@ export default function ComplaintPage() {
                     // howOften gets special slide-in treatment
                     if (q.id === 'howOften') {
                       return (
-                        <div key={q.id} className={`col-span-1 sm:col-span-2 animate-fade-in`}>
+                        <div key={q.id} className="col-span-1 sm:col-span-2 animate-fade-in">
                           <div className="ml-4 pl-4 border-l-2 border-amber-500/20">
                             <DynamicField
                               question={q}
@@ -1363,59 +1349,68 @@ export default function ComplaintPage() {
                   })}
                 </div>
 
-                {/* Amber warning box for file upload section */}
-                {hasFileUpload && (
-                  <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50">
-                    <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-700 dark:text-amber-300">
-                      Upload a copy of your evidence with a maximum file size of 10MB. For larger files,
-                      upload it through an online storage/cloud and send it through email of CSFD at{' '}
-                      <a href="mailto:csfd@umak.edu.ph" className="underline font-medium">
-                        csfd@umak.edu.ph
-                      </a>
-                    </p>
-                  </div>
-                )}
+                {/* File upload questions */}
+                {fileQuestions.map(q => (
+                  <FileUpload
+                    key={q.id}
+                    files={formData.files}
+                    onFilesChange={(files) => setFormData(prev => ({ ...prev, files }))}
+                    maxFileSize={10 * 1024 * 1024}
+                    maxFiles={5}
+                    label={q.label || 'Supporting Evidence (Optional)'}
+                    hint={q.helpText || 'PDF, DOC, DOCX, JPG, PNG (max 10MB each, up to 5 files)'}
+                  />
+                ))}
               </CardContent>
             </Card>
           );
         })}
 
-        {/* Additional Questions (not in any section) */}
+        {/* Unsectioned Questions (not in any section) */}
         {unsectionedQuestions.length > 0 && (
           <Card className="border-border/50 overflow-hidden">
             <div className="h-1.5 bg-gradient-to-r from-gray-400 to-gray-300" />
             <CardHeader>
               <div className="flex items-center gap-3">
-                <div className="size-10 rounded-xl bg-gray-500/10 flex items-center justify-center">
-                  <ClipboardList className="size-5 text-gray-500" />
+                <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
+                  <ClipboardList className="size-5 text-muted-foreground" />
                 </div>
-                <CardTitle className="text-lg font-semibold text-umak-blue dark:text-umak-gold">
-                  ADDITIONAL QUESTIONS
-                </CardTitle>
+                <CardTitle className="text-lg font-semibold">OTHER DETAILS</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent className="space-y-6">
               {unsectionedQuestions.sort((a, b) => a.sortOrder - b.sortOrder).map(q => {
                 if (q.id === 'howOften' && answers['isOngoing'] !== 'Yes') return null;
                 const listType = getDynamicListType(q.choices);
                 const dynamicChoices = listType ? dynamicLists[listType] || null : null;
                 return (
-                  <div key={q.id}>
-                    <DynamicField
-                      question={q}
-                      value={answers[q.id] || ''}
-                      onChange={updateDynamicAnswer}
-                      error={errors[q.id]}
-                      dynamicChoices={dynamicChoices}
-                    />
-                  </div>
+                  <DynamicField
+                    key={q.id}
+                    question={q}
+                    value={answers[q.id] || ''}
+                    onChange={updateDynamicAnswer}
+                    error={errors[q.id]}
+                    dynamicChoices={dynamicChoices}
+                  />
                 );
               })}
             </CardContent>
           </Card>
         )}
 
+        {/* Evidence warning notice (always show at the bottom) */}
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50">
+          <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            Upload a copy of your evidence with a maximum file size of 10MB. For larger files,
+            upload it through an online storage/cloud and send it through email of CSFD at{' '}
+            <a href="mailto:csfd@umak.edu.ph" className="underline font-medium">
+              csfd@umak.edu.ph
+            </a>
+          </p>
+        </div>
+
+        {/* Error banner */}
         {stepErrors.length > 0 && (
           <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
             <p className="text-sm text-destructive font-medium">
@@ -1462,8 +1457,33 @@ export default function ComplaintPage() {
     const detailQuestions = getPhaseQuestions('complaint_details');
     const complainantQuestions = getPhaseQuestions('complainant').filter(q => q.fieldType !== 'section_header');
     const respondentQuestions = getPhaseQuestions('respondent').filter(q => q.fieldType !== 'section_header');
+    const detailSections = formConfig?.sections?.complaint_details || [];
+    const sortedSections = [...detailSections].sort((a, b) => a.sortOrder - b.sortOrder);
 
-    // Helper to render dynamic person fields
+    // Per-section dot colors for the review
+    const sectionDotColors = [
+      'bg-umak-blue dark:bg-umak-gold',
+      'bg-amber-500',
+      'bg-teal-500',
+      'bg-purple-500',
+      'bg-emerald-500',
+      'bg-rose-500',
+      'bg-cyan-500',
+    ];
+    const sectionTextColors = [
+      'text-umak-blue dark:text-umak-gold',
+      'text-amber-600 dark:text-amber-400',
+      'text-teal-600 dark:text-teal-400',
+      'text-purple-600 dark:text-purple-400',
+      'text-emerald-600 dark:text-emerald-400',
+      'text-rose-600 dark:text-rose-400',
+      'text-cyan-600 dark:text-cyan-400',
+    ];
+
+    // Check if question uses violation type dynamic choices
+    const isViolationTypeQ = (q: FormQuestion) => q.choices?.startsWith('dynamic:violation_');
+
+    // Helper to render dynamic person fields with proper labels
     const renderPersonFields = (person: PersonInfo, questions: FormQuestion[]) => {
       const filledFields = questions.filter(q => {
         const val = person[q.id];
@@ -1485,114 +1505,96 @@ export default function ComplaintPage() {
               {person.extensionName ? ` ${person.extensionName}` : ''}
             </p>
           )}
-          {/* Other fields in flex rows */}
+          {/* Other fields with labels */}
           {otherFields.length > 0 && (
-            <>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                {otherFields.slice(0, 4).map(q => (
-                  <span key={q.id} className="flex items-center gap-1">
-                    {q.id === 'email' && <Mail className="size-3" />}
-                    {q.id === 'sex' && <User className="size-3" />}
-                    {person[q.id]}
-                  </span>
-                ))}
-              </div>
-              {otherFields.length > 4 && (
-                <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                  {otherFields.slice(4).map(q => (
-                    <span key={q.id}>{person[q.id]}</span>
-                  ))}
-                </div>
-              )}
-            </>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+              {otherFields.map(q => (
+                <span key={q.id} className="flex items-center gap-1">
+                  <span className="text-xs font-medium text-muted-foreground/70">{q.label}:</span>
+                  {q.id === 'email' && <Mail className="size-3 shrink-0" />}
+                  {q.id === 'sex' && <User className="size-3 shrink-0" />}
+                  <span>{person[q.id]}</span>
+                </span>
+              ))}
+            </div>
           )}
         </div>
       );
     };
 
-    // Helper to render complaint details grouped by real FormSection records
-    const renderDetailSections = () => {
-      const detailSections = formConfig?.sections?.complaint_details || [];
-      const sortedSections = [...detailSections].sort((a, b) => a.sortOrder - b.sortOrder);
+    // Group detail questions by section for the review
+    const questionsBySection = new Map<string, FormQuestion[]>();
+    const unsectionedQs: FormQuestion[] = [];
+    for (const q of detailQuestions) {
+      if (q.fieldType === 'section_header' || q.fieldType === 'file_upload') continue;
+      if (q.sectionId) {
+        if (!questionsBySection.has(q.sectionId)) questionsBySection.set(q.sectionId, []);
+        questionsBySection.get(q.sectionId)!.push(q);
+      } else {
+        unsectionedQs.push(q);
+      }
+    }
 
-      // 7 gradient colors for section headers in review
-      const sectionGradients = [
-        'from-umak-blue to-umak-gold',
-        'from-amber-500 to-amber-400',
-        'from-teal-500 to-teal-400',
-        'from-purple-500 to-purple-400',
-        'from-emerald-500 to-emerald-400',
-        'from-rose-500 to-rose-400',
-        'from-cyan-500 to-cyan-400',
-      ];
+    // Render a single detail section in review mode
+    const renderDetailSection = (section: FormSection, sIdx: number) => {
+      const sectionQuestions = (questionsBySection.get(section.id) || [])
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      if (sectionQuestions.length === 0) return null;
 
-      // Check if question uses violation type dynamic choices
-      const isViolationTypeQ = (q: FormQuestion) => q.choices?.startsWith('dynamic:violation_');
+      // Only show fields with values
+      const filledFields = sectionQuestions.filter(q => {
+        const val = answers[q.id];
+        if (!val || val.trim() === '') return false;
+        return true;
+      });
 
-      return sortedSections.map((section, sIdx) => {
-        // Get questions for this section (skip section_header and file_upload types)
-        const sectionQuestions = detailQuestions
-          .filter(q => q.sectionId === section.id && q.fieldType !== 'section_header' && q.fieldType !== 'file_upload')
-          .sort((a, b) => a.sortOrder - b.sortOrder);
+      if (filledFields.length === 0) return null;
 
-        // Get only filled answers
-        const filledFields = sectionQuestions.filter(q => {
-          const val = answers[q.id];
-          if (!val || val.trim() === '') return false;
-          return true;
-        });
-
-        // Skip empty sections
-        if (filledFields.length === 0) return null;
-
-        return (
-          <div key={section.id} className="space-y-3">
-            {/* Section header */}
-            <div className="flex items-center gap-2 mb-3">
-              <div className={`h-1 w-4 rounded-full bg-gradient-to-r ${sectionGradients[sIdx % sectionGradients.length]}`} />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-umak-blue/70 dark:text-umak-gold/70">{section.title}</h4>
-              <div className="flex-1 h-px bg-border/50" />
-            </div>
-            {/* Fields grid */}
-            <div className={filledFields.length <= 2 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : 'space-y-3'}>
-              {filledFields.map(q => {
-                const val = answers[q.id];
-                // Special handling for violation type
-                if (isViolationTypeQ(q)) {
-                  if (!val || (val !== '__other__' && !violationTypeOtherRef.current && !val.trim())) return null;
-                  return (
-                    <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30 sm:col-span-2">
-                      <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
-                      <p className="text-sm font-medium">{val === '__other__' ? violationTypeOtherRef.current : val}</p>
-                    </div>
-                  );
-                }
-                if (!val || val.trim() === '') return null;
-                // Date formatting
-                let displayVal = val;
-                if (q.fieldType === 'date') {
-                  try { displayVal = format(new Date(val), 'MMMM d, yyyy'); } catch { /* keep raw */ }
-                }
-                // Long text fields get full width
-                if (q.fieldType === 'long_text') {
-                  return (
-                    <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30 sm:col-span-2">
-                      <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
-                      <p className="text-sm font-medium whitespace-pre-wrap">{displayVal}</p>
-                    </div>
-                  );
-                }
+      return (
+        <div key={section.id}>
+          <div className="flex items-center gap-2 mb-3">
+            <div className={`size-1.5 rounded-full ${sectionDotColors[sIdx % sectionDotColors.length]}`} />
+            <h4 className={`text-xs font-bold uppercase tracking-wider ${sectionTextColors[sIdx % sectionTextColors.length]}/70`}>{section.title}</h4>
+            <div className="flex-1 h-px bg-border/50" />
+          </div>
+          <div className={filledFields.length <= 2 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : 'space-y-3'}>
+            {filledFields.map(q => {
+              const val = answers[q.id];
+              // Special handling for violation type
+              if (isViolationTypeQ(q)) {
+                if (!val || (val !== '__other__' && !violationTypeOtherRef.current && !val.trim())) return null;
                 return (
-                  <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30">
+                  <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30 sm:col-span-2">
+                    <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
+                    <p className="text-sm font-medium">{val === '__other__' ? violationTypeOtherRef.current : val}</p>
+                  </div>
+                );
+              }
+              if (!val || val.trim() === '') return null;
+              // Date formatting
+              let displayVal = val;
+              if (q.fieldType === 'date') {
+                try { displayVal = format(new Date(val), 'MMMM d, yyyy'); } catch { /* keep raw */ }
+              }
+              // Long text fields get full width
+              if (q.fieldType === 'long_text') {
+                return (
+                  <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30 sm:col-span-2">
                     <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
                     <p className="text-sm font-medium whitespace-pre-wrap">{displayVal}</p>
                   </div>
                 );
-              })}
-            </div>
+              }
+              return (
+                <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30">
+                  <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
+                  <p className="text-sm font-medium whitespace-pre-wrap">{displayVal}</p>
+                </div>
+              );
+            })}
           </div>
-        );
-      });
+        </div>
+      );
     };
 
     return (
@@ -1671,7 +1673,41 @@ export default function ComplaintPage() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            {renderDetailSections()}
+            {sortedSections.map((section, sIdx) =>
+              renderDetailSection(section, sIdx)
+            )}
+            {/* Unsectioned details fallback */}
+            {(() => {
+              const filled = unsectionedQs.sort((a, b) => a.sortOrder - b.sortOrder).filter(q => {
+                const val = answers[q.id];
+                return val && val.trim() !== '';
+              });
+              if (filled.length === 0) return null;
+              return (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="size-1.5 rounded-full bg-muted-foreground" />
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground/70">Other Details</h4>
+                    <div className="flex-1 h-px bg-border/50" />
+                  </div>
+                  <div className="space-y-3">
+                    {filled.map(q => {
+                      const val = answers[q.id];
+                      let displayVal = val;
+                      if (q.fieldType === 'date') {
+                        try { displayVal = format(new Date(val), 'MMMM d, yyyy'); } catch { /* keep raw */ }
+                      }
+                      return (
+                        <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30">
+                          <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
+                          <p className="text-sm font-medium whitespace-pre-wrap">{displayVal}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </CardContent>
         </Card>
 
