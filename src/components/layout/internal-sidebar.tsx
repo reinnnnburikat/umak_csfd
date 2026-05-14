@@ -31,7 +31,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { getServeFileUrl } from '@/lib/file-url';
 import {
@@ -221,12 +220,12 @@ export function InternalSidebar({ className, collapsed = false, onToggleCollapse
 
   return (
     <aside
-      className={`h-screen gradient-dark flex flex-col shrink-0 sticky top-0 transition-all duration-300 overflow-hidden ${
+      className={`h-screen gradient-dark flex flex-col shrink-0 sticky top-0 transition-all duration-300 ${
         collapsed ? 'w-16' : 'w-64'
       } ${className ?? ''}`}
     >
       {/* Logo + User Info */}
-      <div className={`transition-all duration-300 ${collapsed ? 'p-2 pb-2' : 'p-4 pb-3'}`}>
+      <div className={`shrink-0 transition-all duration-300 ${collapsed ? 'p-2 pb-2' : 'p-4 pb-3'}`}>
         <Link href="/dashboard" className={`flex items-center gap-2 mb-4 transition-all duration-300 ${collapsed ? 'justify-center' : ''}`}>
           <div className="flex items-center gap-1.5 shrink-0">
             <Image
@@ -274,10 +273,10 @@ export function InternalSidebar({ className, collapsed = false, onToggleCollapse
         </div>
       </div>
 
-      <Separator className="bg-white/10 mx-3" />
+      <Separator className="bg-white/10 mx-3 shrink-0" />
 
-      {/* Navigation */}
-      <ScrollArea className="flex-1 px-2 py-3">
+      {/* Navigation - SCROLLABLE */}
+      <div className="flex-1 overflow-y-auto px-2 py-3 min-h-0">
         <nav className="flex flex-col gap-0.5">
           {filteredItems.map((item) => {
             // For /cms, only highlight if exactly /cms (not /cms/*)
@@ -361,12 +360,12 @@ export function InternalSidebar({ className, collapsed = false, onToggleCollapse
             return <div key={item.href}>{linkElement}</div>;
           })}
         </nav>
-      </ScrollArea>
+      </div>
+
+      <Separator className="bg-white/10 mx-3 shrink-0" />
 
       {/* Bottom Section: Collapse toggle + Logout */}
-      <div className={`mt-auto transition-all duration-300 ${collapsed ? 'p-2' : 'p-3'}`}>
-        <Separator className="bg-white/10 mb-2" />
-
+      <div className={`shrink-0 transition-all duration-300 ${collapsed ? 'p-2' : 'p-3'}`}>
         {/* Collapse Toggle Button */}
         {onToggleCollapse && (
           <Button

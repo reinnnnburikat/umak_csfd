@@ -623,11 +623,20 @@ export default function ComplaintFormBuilderPage() {
     }
   }, [activeTab]);
 
+  // ── Phases that support sections ────────────────────────────────────
+  const sectionCapablePhases = ['complaint_details', 'complainant', 'respondent'];
+  const isSectionCapable = sectionCapablePhases.includes(activeTab);
+
   // ── Fetch sections ───────────────────────────────────────────────────
   const fetchSections = useCallback(async () => {
+    // Only fetch for phases that support sections
+    if (!sectionCapablePhases.includes(activeTab)) {
+      setSections([]);
+      return;
+    }
     try {
       setSectionLoading(true);
-      const res = await fetch('/api/form-sections?phase=complaint_details');
+      const res = await fetch(`/api/form-sections?phase=${activeTab}`);
       if (res.ok) {
         const json = await res.json();
         const sectionData: FormSection[] = json.data || [];
@@ -642,16 +651,14 @@ export default function ComplaintFormBuilderPage() {
     } finally {
       setSectionLoading(false);
     }
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     fetchQuestions();
   }, [fetchQuestions]);
 
   useEffect(() => {
-    if (activeTab === 'complaint_details') {
-      fetchSections();
-    }
+    fetchSections();
   }, [activeTab, fetchSections]);
 
   // ── Section toggle expand ────────────────────────────────────────────
@@ -708,7 +715,7 @@ export default function ComplaintFormBuilderPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            phase: 'complaint_details',
+            phase: activeTab,
             title: newSectionTitle.trim(),
             description: newSectionDesc.trim() || null,
             sortOrder: sections.length,
@@ -913,8 +920,8 @@ export default function ComplaintFormBuilderPage() {
         validation: buildValidationPayload(form),
       };
 
-      // Include sectionId for complaint_details phase
-      if (activeTab === 'complaint_details') {
+      // Include sectionId for section-capable phases
+      if (isSectionCapable) {
         payload.sectionId = form.sectionId || null;
       }
 
@@ -941,7 +948,7 @@ export default function ComplaintFormBuilderPage() {
       toast.success(editingQuestion ? 'Question updated successfully' : 'Question added successfully');
       setDialogOpen(false);
       fetchQuestions();
-      if (activeTab === 'complaint_details') fetchSections();
+      if (isSectionCapable) fetchSections();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save question');
     } finally {
@@ -977,7 +984,7 @@ export default function ComplaintFormBuilderPage() {
       if (!res.ok) throw new Error();
       toast.success('Question deleted successfully');
       fetchQuestions();
-      if (activeTab === 'complaint_details') fetchSections();
+      if (isSectionCapable) fetchSections();
     } catch {
       toast.error('Failed to delete question');
     } finally {
@@ -1147,7 +1154,7 @@ export default function ComplaintFormBuilderPage() {
           <CardContent className="p-12 text-center">
             <FolderOpen className="size-12 mx-auto text-muted-foreground/50 mb-3" />
             <p className="text-muted-foreground">No sections or questions yet</p>
-            <p className="text-sm text-muted-foreground/70 mt-1">Click &quot;Add Section&quot; to organize your complaint details</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">Click &quot;Add Section&quot; to organize your {currentPhase?.label?.toLowerCase() || activeTab} questions</p>
           </CardContent>
         </Card>
       );
@@ -1412,7 +1419,7 @@ export default function ComplaintFormBuilderPage() {
             <Plus className="size-4" />
             Add Question
           </Button>
-          {activeTab === 'complaint_details' ? (
+          {isSectionCapable ? (
             <Button
               onClick={() => handleOpenAddSection()}
               variant="outline"
@@ -1452,8 +1459,8 @@ export default function ComplaintFormBuilderPage() {
                 <Skeleton key={i} className="h-16 rounded-xl" />
               ))}
             </div>
-          ) : activeTab === 'complaint_details' ? (
-            /* ── Sectionized View for Complaint Details ── */
+          ) : isSectionCapable ? (
+            /* ── Sectionized View for Section-Capable Phases ── */
             renderSectionizedView()
           ) : questions.length === 0 ? (
             <Card className="glass border-0 shadow-sm">
@@ -1463,122 +1470,6 @@ export default function ComplaintFormBuilderPage() {
                 <p className="text-sm text-muted-foreground/70 mt-1">Click &quot;Add Question&quot; to get started</p>
               </CardContent>
             </Card>
-          ) : activeTab === 'complainant' || activeTab === 'respondent' ? (
-            /* ── Visual Form Preview for Complainant / Respondent Info ── */
-            <div className="space-y-4">
-              {questions.map((q, index) => (
-                <Card
-                  key={q.id}
-                  className={`glass border-0 shadow-sm transition-all ${!q.isActive ? 'opacity-50' : 'hover:shadow-md'}`}
-                >
-                  <CardContent className="p-5">
-                    {/* Question Header Row */}
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex items-center gap-2.5">
-                        {/* Drag handle / Reorder */}
-                        <div className="flex flex-col gap-0.5">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-5 text-muted-foreground/50"
-                            onClick={() => handleReorder(index, 'up')}
-                            disabled={index === 0}
-                          >
-                            <ChevronUp className="size-3" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-5 text-muted-foreground/50"
-                            onClick={() => handleReorder(index, 'down')}
-                            disabled={index === questions.length - 1}
-                          >
-                            <ChevronDown className="size-3" />
-                          </Button>
-                        </div>
-
-                        {/* Type icon + badge */}
-                        <div className={`flex items-center gap-1.5 rounded-md px-2 py-1 ${TYPE_BADGE_COLORS[q.fieldType] || ''}`}>
-                          {getFieldIcon(q.fieldType)}
-                          <span className="text-[11px] font-medium">{formatFieldType(q.fieldType)}</span>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Switch
-                          checked={q.isActive}
-                          onCheckedChange={() => handleToggleActive(q)}
-                          className="scale-[0.8]"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7"
-                          onClick={() => handleOpenEdit(q)}
-                          title="Edit"
-                        >
-                          <Pencil className="size-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="size-7 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300"
-                          onClick={() => setDeleteId(q.id)}
-                          title="Delete"
-                        >
-                          <Trash2 className="size-3" />
-                        </Button>
-                      </div>
-                    </div>
-
-                    {/* Label */}
-                    <div className="mb-1">
-                      <span className="text-sm font-semibold">
-                        {q.label}
-                        {q.required && <span className="text-red-500 dark:text-red-400 ml-0.5">*</span>}
-                      </span>
-                    </div>
-
-                    {/* Help text */}
-                    {q.helpText && (
-                      <p className="text-xs text-muted-foreground mb-3">{q.helpText}</p>
-                    )}
-
-                    {/* Field Preview */}
-                    <div className="mb-2">
-                      {renderFieldPreview(q)}
-                    </div>
-
-                    {/* Footer meta */}
-                    <div className="flex flex-wrap items-center gap-3 mt-3 pt-2 border-t border-border/50">
-                      {q.roleTarget && q.roleTarget !== 'both' && (
-                        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                          {q.roleTarget === 'complainant' ? (
-                            <><User className="size-3" /> Complainant only</>
-                          ) : (
-                            <><Shield className="size-3" /> Respondent only</>
-                          )}
-                        </div>
-                      )}
-                      {q.allowMultiple && (
-                        <span className="text-[11px] text-muted-foreground bg-muted rounded px-1.5 py-0.5">
-                          Allow Multiple
-                        </span>
-                      )}
-                      {q.defaultValue && (
-                        <span className="text-[11px] text-muted-foreground bg-muted rounded px-1.5 py-0.5">
-                          Default: {q.defaultValue}
-                        </span>
-                      )}
-                      <span className={`ml-auto text-[11px] font-medium ${q.isActive ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-gray-500'}`}>
-                        {q.isActive ? '● Active' : '○ Inactive'}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
           ) : (
             /* ── Table View for Instructions ── */
             <Card className="glass border-0 shadow-sm">
@@ -1704,8 +1595,8 @@ export default function ComplaintFormBuilderPage() {
           </DialogHeader>
 
           <div className="grid gap-5 py-2">
-            {/* Section Assignment (complaint_details only) */}
-            {activeTab === 'complaint_details' && (
+            {/* Section Assignment (section-capable phases) */}
+            {isSectionCapable && (
               <div className="space-y-2">
                 <Label>Section</Label>
                 <Select
@@ -1932,12 +1823,12 @@ export default function ComplaintFormBuilderPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {editingSection ? 'Edit Section' : 'Add Section'}
+              {editingSection ? 'Edit Section' : `Add Section (${currentPhase?.label || activeTab})`}
             </DialogTitle>
             <DialogDescription>
               {editingSection
                 ? `Editing section "${editingSection.title}"`
-                : 'Create a new section to organize complaint detail questions'}
+                : `Create a new section to organize ${currentPhase?.label?.toLowerCase() || activeTab} questions`}
             </DialogDescription>
           </DialogHeader>
 
