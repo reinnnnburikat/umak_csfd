@@ -148,6 +148,14 @@ export async function PATCH(request: NextRequest) {
       }
     }
 
+    // If deactivating a section, also deactivate all questions in it
+    if (updateData.isActive === false) {
+      await db.formQuestion.updateMany({
+        where: { sectionId: id, isActive: true },
+        data: { isActive: false },
+      });
+    }
+
     const updated = await db.formSection.update({
       where: { id },
       data: updateData,

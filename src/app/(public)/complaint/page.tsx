@@ -444,11 +444,12 @@ function DynamicField({
   }
 }
 
-// ── Person Form Component (dynamic) ──
+// ── Person Form Component (dynamic, section-aware) ──
 function DynamicPersonForm({
   person,
   index,
   questions,
+  sections,
   onFieldChange,
   prefix,
   errors,
@@ -460,6 +461,7 @@ function DynamicPersonForm({
   person: PersonInfo;
   index: number;
   questions: FormQuestion[];
+  sections?: FormSection[];
   onFieldChange: (index: number, qId: string, value: string) => void;
   prefix: string;
   errors: Record<string, string>;
@@ -468,46 +470,107 @@ function DynamicPersonForm({
   onCollegeInstituteOtherChange: (index: number, value: string) => void;
   collegeOtherError?: string;
 }) {
+  const sortedSections = useMemo(() =>
+    [...(sections || [])].sort((a, b) => a.sortOrder - b.sortOrder),
+    [sections]
+  );
+
+  const questionsBySection = useMemo(() => {
+    const map: Record<string, FormQuestion[]> = {};
+    for (const q of questions) {
+      if (q.sectionId) {
+        if (!map[q.sectionId]) map[q.sectionId] = [];
+        map[q.sectionId].push(q);
+      }
+    }
+    return map;
+  }, [questions]);
+
+  const sectionIds = useMemo(() => new Set(sortedSections.map(s => s.id)), [sortedSections]);
+  const unsectionedQuestions = useMemo(() =>
+    questions.filter(q => !q.sectionId || !sectionIds.has(q.sectionId)),
+    [questions, sectionIds]
+  );
+
+  // Render a single question field
+  const renderField = (q: FormQuestion) => {
+    if (q.fieldType === 'section_header') {
+      return <SectionHeader key={q.id} label={q.label} content={q.content} helpText={q.helpText} />;
+    }
+    const fieldId = `${prefix}-${q.id}-${index}`;
+    const dynamicChoices = getDynamicListType(q.choices) ? dynamicLists[getDynamicListType(q.choices)!] || null : null;
+    const val = person[q.id] || q.defaultValue || '';
+    const fieldError = errors[`${index}.${q.id}`] || errors[q.id];
+
+    return (
+      <div key={q.id}>
+        <DynamicField
+          question={q}
+          value={val}
+          onChange={(qId, v) => onFieldChange(index, qId, v)}
+          error={fieldError}
+          prefix={prefix}
+          dynamicChoices={dynamicChoices}
+        />
+        {/* College/Institute "Other" conditional */}
+        {(q.id === 'collegeInstitute' || q.id === 'resp_collegeInstitute') && val === 'Other' && (
+          <div className="space-y-2 animate-fade-in mt-2">
+            <Label htmlFor={`${prefix}-collegeInstituteOther-${index}`} className="text-xs font-medium">
+              Please specify your College/Institute <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id={`${prefix}-collegeInstituteOther-${index}`}
+              placeholder="Enter your college or institute"
+              defaultValue={collegeInstituteOther}
+              onChange={(e) => onCollegeInstituteOtherChange(index, e.target.value)}
+              className="transition-all duration-200 focus:ring-2 focus:ring-umak-blue/20 dark:focus:ring-umak-gold/20"
+            />
+            {collegeOtherError && <p className="text-sm text-destructive">{collegeOtherError}</p>}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // If no sections, render flat (fallback)
+  if (!sortedSections || sortedSections.length === 0) {
+    return <div className="space-y-5">{questions.map(renderField)}</div>;
+  }
+
   return (
-    <div className="space-y-5">
-      {questions.map((q) => {
-        if (q.fieldType === 'section_header') {
-          return <SectionHeader key={q.id} label={q.label} content={q.content} helpText={q.helpText} />;
-        }
-        const fieldId = `${prefix}-${q.id}-${index}`;
-        const dynamicChoices = getDynamicListType(q.choices) ? dynamicLists[getDynamicListType(q.choices)!] || null : null;
-        const val = person[q.id] || q.defaultValue || '';
-        const fieldError = errors[`${index}.${q.id}`] || errors[q.id];
+    <div className="space-y-6">
+      {sortedSections.map((section) => {
+        const sectionQs = (questionsBySection[section.id] || [])
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+
+        if (sectionQs.length === 0) return null;
 
         return (
-          <div key={q.id}>
-            <DynamicField
-              question={q}
-              value={val}
-              onChange={(qId, v) => onFieldChange(index, qId, v)}
-              error={fieldError}
-              prefix={prefix}
-              dynamicChoices={dynamicChoices}
-            />
-            {/* College/Institute "Other" conditional */}
-            {(q.id === 'collegeInstitute' || q.id === 'resp_collegeInstitute') && val === 'Other' && (
-              <div className="space-y-2 animate-fade-in mt-2">
-                <Label htmlFor={`${prefix}-collegeInstituteOther-${index}`} className="text-xs font-medium">
-                  Please specify your College/Institute <span className="text-destructive">*</span>
-                </Label>
-                <Input
-                  id={`${prefix}-collegeInstituteOther-${index}`}
-                  placeholder="Enter your college or institute"
-                  defaultValue={collegeInstituteOther}
-                  onChange={(e) => onCollegeInstituteOtherChange(index, e.target.value)}
-                  className="transition-all duration-200 focus:ring-2 focus:ring-umak-blue/20 dark:focus:ring-umak-gold/20"
-                />
-                {collegeOtherError && <p className="text-sm text-destructive">{collegeOtherError}</p>}
-              </div>
+          <div key={section.id}>
+            {/* Section header */}
+            <div className="flex items-center gap-2 mb-3">
+              <div className="size-1.5 rounded-full bg-umak-blue/70 dark:bg-umak-gold/70" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-umak-blue/70 dark:text-umak-gold/70">{section.title}</h4>
+              <div className="flex-1 h-px bg-border/50" />
+            </div>
+            {section.description && (
+              <p className="text-xs text-muted-foreground mb-3">{section.description}</p>
             )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {sectionQs.map(renderField)}
+            </div>
           </div>
         );
       })}
+
+      {/* Unsectioned questions */}
+      {unsectionedQuestions.length > 0 && (
+        <div className="space-y-5">
+          {unsectionedQuestions
+            .sort((a, b) => a.sortOrder - b.sortOrder)
+            .map(renderField)}
+        </div>
+      )}
     </div>
   );
 }
@@ -926,6 +989,7 @@ export default function ComplaintPage() {
     removePerson: (index: number) => void,
   ) => {
     const questions = getPhaseQuestions(phase);
+    const phaseSections = formConfig?.sections?.[phase] || [];
     const sectionHeaders = questions.filter(q => q.fieldType === 'section_header');
     const mainHeader = sectionHeaders[0];
     const isComplainant = phase === 'complainant';
@@ -975,6 +1039,7 @@ export default function ComplaintPage() {
                 person={personsList[0]}
                 index={0}
                 questions={questions}
+                sections={phaseSections}
                 onFieldChange={onFieldChange}
                 prefix={phase}
                 errors={errors}
@@ -1017,6 +1082,7 @@ export default function ComplaintPage() {
                   person={person}
                   index={actualIdx}
                   questions={questions}
+                  sections={phaseSections}
                   onFieldChange={onFieldChange}
                   prefix={phase}
                   errors={errors}

@@ -7,14 +7,17 @@ import { revalidatePath } from 'next/cache';
 // No auth required.
 export async function GET() {
   try {
-    // Fetch all active questions, ordered by phase and sortOrder
-    const questions = await db.formQuestion.findMany({
+    // Fetch all active sections, ordered by phase and sortOrder
+    const sections = await db.formSection.findMany({
       where: { isActive: true },
       orderBy: [{ phase: 'asc' }, { sortOrder: 'asc' }],
     });
 
-    // Fetch all active sections, ordered by phase and sortOrder
-    const sections = await db.formSection.findMany({
+    // Build a set of active section IDs
+    const activeSectionIds = new Set(sections.map(s => s.id));
+
+    // Fetch all active questions, ordered by phase and sortOrder
+    const questions = await db.formQuestion.findMany({
       where: { isActive: true },
       orderBy: [{ phase: 'asc' }, { sortOrder: 'asc' }],
     });
@@ -32,6 +35,11 @@ export async function GET() {
         continue;
       }
       if (q.phase === 'respondent' && q.roleTarget !== 'respondent' && q.roleTarget !== 'both') {
+        continue;
+      }
+
+      // Skip questions whose sectionId points to an inactive section
+      if (q.sectionId && !activeSectionIds.has(q.sectionId)) {
         continue;
       }
 

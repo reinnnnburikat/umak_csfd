@@ -859,6 +859,8 @@ export default function ComplaintFormBuilderPage() {
         body: JSON.stringify({ phase: activeTab, questionIds }),
       });
       if (!res.ok) throw new Error();
+      // Refresh from server to keep state consistent
+      fetchQuestions(false);
     } catch {
       toast.error('Failed to reorder questions');
       fetchQuestions();
@@ -1138,6 +1140,8 @@ export default function ComplaintFormBuilderPage() {
             body: JSON.stringify({ phase: activeTab, questionIds: reordered.map(q => q.id) }),
           });
           if (!res.ok) throw new Error();
+          // Refresh state from server to ensure consistency
+          fetchQuestions(false);
         } catch {
           toast.error('Failed to reorder questions');
           fetchQuestions();
