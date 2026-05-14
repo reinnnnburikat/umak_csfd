@@ -349,3 +349,28 @@ Stage Summary:
 - All user accounts upserted (superadmin, admin, 3 staff)
 - Service toggles, managed lists (violation types, colleges, FAQs), and announcements seeded
 - .env reverted to local SQLite for sandbox development
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix CMS complaint form builder - DnD, cache, subtle saves
+
+Work Log:
+- Analyzed screenshot showing old form structure on Vercel deployment
+- Identified 7 bugs through systematic code exploration (see agent-405a844d report)
+- Fixed Cache-Control on public config API (removed s-maxage=60, stale-while-revalidate=120)
+- Added revalidatePath('/api/complaint-form/config') to all 5 mutation API endpoints
+- Changed DnD collision detection from closestCenter to rectIntersection
+- Fixed handleMoveQuestionToSection to calculate and set sortOrder at target position
+- Added fetchQuestions(false)/fetchSections(false) pattern for subtle saves without loading flash
+- Created new /api/form-sections/reorder batch endpoint with Prisma $transaction
+- Updated handleReorderSection to use batch API instead of N sequential PATCH calls
+- Fixed handleDragEnd dependency array (added handleMoveQuestionToSection)
+- All changes pass eslint, pushed to GitHub
+
+Stage Summary:
+- Public form will now reflect CMS changes immediately (no cache delay)
+- Drag-and-drop within sections now works correctly with proper collision detection
+- Drag-and-drop cross-section moves set correct sortOrder
+- Section reorders are atomic (single transaction)
+- All saves are subtle - no loading spinner on individual edits
+- Files modified: 6 files, 139 insertions, 41 deletions
