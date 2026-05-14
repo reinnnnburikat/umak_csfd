@@ -39,8 +39,11 @@ const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads');
  * POST /api/upload
  *
  * Accepts multipart/form-data with a `file` field.
- * Saves the file to public/uploads/ with a unique filename.
- * Returns { url: "/uploads/filename.ext" } on success.
+ * Converts the file to a data URL (base64) and returns it.
+ * This approach works on all hosting platforms (Vercel, Netlify, etc.)
+ * including those with read-only filesystems.
+ *
+ * Returns { url: "data:<mime-type>;base64,<base64-data>" } on success.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -92,24 +95,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ensure upload directory exists
-    await mkdir(UPLOAD_DIR, { recursive: true });
+    // Convert file to base64 data URL — works on all hosting platforms
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    const mimeType = file.type || 'application/octet-stream';
+    const url = `data:${mimeType};base64,${base64}`;
 
-    // Generate a unique filename to prevent collisions
-    const timestamp = Date.now().toString(36);
-    const random = crypto.randomBytes(8).toString('hex');
-    const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 60);
-    const filename = `${timestamp}_${random}_${safeName}`;
-
-    // Full path for the file on disk
-    const filePath = path.join(UPLOAD_DIR, filename);
-
-    // Convert the File/Blob to a Buffer and write to disk
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(filePath, buffer);
-
-    // Return the public URL path (relative to public/)
-    const url = `/uploads/${filename}`;
+    // Also try to save to disk (best-effort, for local dev / self-hosted)
+    // This is non-blocking: if it fails, we still return the data URL
+    try {
+      await mkdir(UPLOAD_DIR, { recursive: true });
+      const timestamp = Date.now().toString(36);
+      const random = crypto.randomBytes(8).toString('hex');
+      const safeName = originalName.replace(/[^a-zA-Z0-9._-]/g, '_').substring(0, 60);
+      const filename = `${timestamp}_${random}_${safeName}`;
+      await writeFile(path.join(UPLOAD_DIR, filename), Buffer.from(arrayBuffer));
+    } catch {
+      // Filesystem write failed (e.g., Vercel read-only FS) — ignore, data URL is our primary storage
+    }
 
     return NextResponse.json({ url }, { status: 201 });
   } catch (error) {
@@ -124,7 +127,8 @@ export async function POST(request: NextRequest) {
 /**
  * DELETE /api/upload
  *
- * Deletes a previously uploaded file.
+ * Deletes a previously uploaded file from disk (if it was saved as a file path).
+ * Data URLs don't need server-side deletion — they're just strings in the DB.
  * Body: { "url": "/uploads/filename.ext" }
  */
 export async function DELETE(request: NextRequest) {
@@ -137,6 +141,11 @@ export async function DELETE(request: NextRequest) {
         { error: 'Missing or invalid "url" parameter in request body.' },
         { status: 400 }
       );
+    }
+
+    // Data URLs don't need server-side deletion
+    if (url.startsWith('data:')) {
+      return NextResponse.json({ success: true, message: 'Data URL — no server file to delete.' });
     }
 
     // Only allow deleting files from the uploads directory

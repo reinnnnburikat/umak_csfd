@@ -533,6 +533,24 @@ export default function ComplaintPage() {
   // Track violation type other text
   const violationTypeOtherRef = useRef('');
 
+  // Helper: find a question by its label (case-insensitive partial match)
+  // Used because question IDs are CUIDs, not human-readable keys
+  const findQuestionByLabel = useCallback((...keywords: string[]) => {
+    if (!formConfig) return null;
+    const allQuestions = Object.values(formConfig.phases).flat();
+    const lowerKeywords = keywords.map(k => k.toLowerCase());
+    return allQuestions.find(q =>
+      lowerKeywords.every(kw => q.label.toLowerCase().includes(kw))
+    ) || null;
+  }, [formConfig]);
+
+  // Helper: get the answer for a question found by label
+  const getAnswerByLabel = useCallback((...keywords: string[]): string => {
+    const q = findQuestionByLabel(...keywords);
+    if (!q) return '';
+    return formData.dynamicAnswers[q.id] || '';
+  }, [findQuestionByLabel, formData.dynamicAnswers]);
+
   // Fetch form config + dynamic lists on mount
   useEffect(() => {
     async function init() {
@@ -714,7 +732,10 @@ export default function ComplaintPage() {
     for (const q of questions) {
       if (q.fieldType === 'section_header' || !q.required) continue;
       // Skip conditional fields that are hidden
-      if (q.id === 'howOften' && answers['isOngoing'] !== 'Yes') continue;
+      if (q.label.toLowerCase().includes('how often')) {
+        const ongoingQ = questions.find(oq => oq.label.toLowerCase().includes('ongoing'));
+        if (ongoingQ && answers[ongoingQ.id] !== 'Yes') continue;
+      }
       const val = answers[q.id];
       if (!val || val.trim() === '') {
         fieldErrors[q.id] = `${q.label} is required`;
@@ -741,7 +762,7 @@ export default function ComplaintPage() {
         }
       }
       // Built-in validations
-      if (q.id === 'description' && val.length < 20) {
+      if (q.label.toLowerCase().includes('description') && val.length < 20) {
         fieldErrors[q.id] = 'Description must be at least 20 characters';
       }
     }
@@ -791,7 +812,9 @@ export default function ComplaintPage() {
       const extractField = (key: string) => answers[key] || '';
 
       // Process violation type (combine with "Other")
-      let effectiveViolationType = extractField('violationType');
+      // Find the violation type question dynamically by label (ID is a CUID)
+      const violationQ = findQuestionByLabel('violation', 'type');
+      let effectiveViolationType = violationQ ? (answers[violationQ.id] || '') : '';
       if (effectiveViolationType === '__other__') {
         effectiveViolationType = violationTypeOtherRef.current;
       }
@@ -832,20 +855,26 @@ export default function ComplaintPage() {
         };
       });
 
+      // Extract well-known fields dynamically by label (question IDs are CUIDs)
+      const getField = (...keywords: string[]) => {
+        const q = findQuestionByLabel(...keywords);
+        return q ? (answers[q.id] || '') : '';
+      };
+
       const payload = {
         complainants: processedComplainants,
         respondents: processedRespondents,
-        subject: extractField('subject'),
-        complaintCategory: extractField('complaintCategory'),
+        subject: getField('subject'),
+        complaintCategory: getField('complaint', 'category'),
         violationType: effectiveViolationType || undefined,
-        description: extractField('description'),
-        desiredOutcome: extractField('desiredOutcome'),
-        dateOfIncident: extractField('dateOfIncident'),
-        location: extractField('location'),
-        isOngoing: extractField('isOngoing'),
-        howOften: extractField('howOften') || undefined,
-        witnesses: extractField('witnesses') || undefined,
-        previousReports: extractField('previousReports') || undefined,
+        description: getField('description'),
+        desiredOutcome: getField('desired', 'outcome'),
+        dateOfIncident: getField('date', 'incident'),
+        location: getField('location'),
+        isOngoing: getField('ongoing'),
+        howOften: getField('how', 'often') || undefined,
+        witnesses: getField('witnesses') || undefined,
+        previousReports: getField('previous', 'report') || undefined,
         fileUrls: formData.files.filter(f => f.status === 'uploaded' && f.url).map(f => f.url),
         dynamicAnswers: answers,
         formVersion: formConfig?.version || 1,
@@ -1295,8 +1324,8 @@ export default function ComplaintPage() {
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {regularQuestions.map(q => {
-                    // Violation type — use special dropdown
-                    if (q.id === 'violationType') {
+                    // Violation type — use special dropdown (match by label since IDs are dynamic CUIDs)
+                    if (q.label.toLowerCase().includes('violation') && q.label.toLowerCase().includes('type')) {
                       return (
                         <div key={q.id} className="col-span-1 sm:col-span-2">
                           <ViolationTypeDropdown
@@ -1310,8 +1339,11 @@ export default function ComplaintPage() {
                     }
 
                     // howOften — only show when isOngoing is "Yes"
-                    if (q.id === 'howOften' && answers['isOngoing'] !== 'Yes') {
-                      return null;
+                    if (q.label.toLowerCase().includes('how often')) {
+                      const ongoingQ = regularQuestions.find(oq => oq.label.toLowerCase().includes('ongoing'));
+                      if (ongoingQ && answers[ongoingQ.id] !== 'Yes') {
+                        return null;
+                      }
                     }
 
                     const listType = getDynamicListType(q.choices);
@@ -1319,7 +1351,7 @@ export default function ComplaintPage() {
                     const gridClass = getFieldGridClass(q);
 
                     // howOften gets special slide-in treatment
-                    if (q.id === 'howOften') {
+                    if (q.label.toLowerCase().includes('how often')) {
                       return (
                         <div key={q.id} className="col-span-1 sm:col-span-2 animate-fade-in">
                           <div className="ml-4 pl-4 border-l-2 border-amber-500/20">
