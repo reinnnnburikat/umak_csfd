@@ -3,6 +3,7 @@ import { db } from '@/lib/db';
 import { sendEmail, complaintStatusUpdateHtml, complaintProgressUpdateHtml, complaintRespondentStatusUpdateHtml, complaintRespondentProgressUpdateHtml, downloadFilesAsAttachments, parseFileUrls } from '@/lib/email';
 import { getSessionFromRequest } from '@/lib/session';
 import { notifyStaff, signalDataRefresh } from '@/lib/notifications';
+import { revalidatePath } from 'next/cache';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -394,6 +395,60 @@ export async function PATCH(
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       { error: 'Failed to update complaint', detail: message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSessionFromRequest(request);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (session.user.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Forbidden: Only superadmin can delete complaints.' }, { status: 403 });
+    }
+
+    const { id } = await params;
+
+    const existingComplaint = await db.complaint.findUnique({
+      where: { id },
+    });
+
+    if (!existingComplaint) {
+      return NextResponse.json({ error: 'Complaint not found' }, { status: 404 });
+    }
+
+    await db.complaint.delete({
+      where: { id },
+    });
+
+    await db.auditLog.create({
+      data: {
+        performedBy: session.user.id,
+        performerName: session.user.fullName,
+        performerRole: session.user.role,
+        actionType: 'DELETE',
+        module: 'complaints',
+        recordId: id,
+        oldValue: JSON.stringify(existingComplaint),
+        newValue: null,
+        remarks: 'Complaint deleted by superadmin',
+      },
+    });
+
+    revalidatePath('/complaints');
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Complaint delete error:', error instanceof Error ? error.message : String(error));
+    return NextResponse.json(
+      { error: 'Failed to delete complaint' },
       { status: 500 }
     );
   }

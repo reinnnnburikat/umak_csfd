@@ -204,7 +204,7 @@ export async function GET(request: NextRequest) {
           currentStageIndex: timelineIndex,
           timeline: stageTimestamps,
           estimatedCompletion,
-          claimLocation: 'CSFD Office, 2nd Floor, Admin Building',
+          claimLocation: 'CSFD Office, 5th Floor, Administrative Building',
         });
       }
     } catch (error) {
@@ -267,7 +267,7 @@ export async function GET(request: NextRequest) {
           currentStageIndex: timelineIndex,
           timeline: stageTimestamps,
           estimatedCompletion,
-          claimLocation: 'CSFD Office, 2nd Floor, Admin Building',
+          claimLocation: 'CSFD Office, 5th Floor, Administrative Building',
         });
       }
     } catch (error) {

@@ -55,6 +55,7 @@ import {
 import { toast } from 'sonner';
 import { useQueryInvalidation } from '@/hooks/use-data-refresh';
 import { useServiceRequests } from '@/hooks/use-service-requests';
+import { useAuth } from '@/hooks/use-auth';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 const ActionModal = dynamic(
@@ -275,6 +276,7 @@ function BatchActionDialog({
 
 // ── Main Inner Component ──
 function ServiceRequestsInner() {
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const initialType = searchParams.get('type') || 'All';
   const initialStatus = searchParams.get('status') || 'all';
@@ -1083,6 +1085,7 @@ function ServiceRequestsInner() {
         onActionComplete={() => {
           refetch();
         }}
+        isSuperAdmin={user?.role === 'superadmin'}
       />
 
       {/* Batch Action Dialog */}

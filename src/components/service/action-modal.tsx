@@ -6,6 +6,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -63,6 +65,8 @@ import {
   Pencil,
   X,
   Maximize2,
+  Trash2,
+  Loader2 as LoaderIcon,
 } from 'lucide-react';
 import {
   getOffenseColor,
@@ -98,6 +102,7 @@ interface ActionModalProps {
   open: boolean;
   onClose: () => void;
   onActionComplete: () => void;
+  isSuperAdmin?: boolean;
 }
 
 /* ────────────────────────────────────────────────────────────────────── */
@@ -512,12 +517,36 @@ function InfractionHistorySection({ studentNumber }: { studentNumber: string }) 
 /*  Main ActionModal                                                      */
 /* ────────────────────────────────────────────────────────────────────── */
 
-export function ActionModal({ request, open, onClose, onActionComplete }: ActionModalProps) {
+export function ActionModal({ request, open, onClose, onActionComplete, isSuperAdmin }: ActionModalProps) {
   const [showHoldRemarks, setShowHoldRemarks] = useState(false);
   const [holdRemarks, setHoldRemarks] = useState('');
   const [holdRemarksError, setHoldRemarksError] = useState('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [liveRequest, setLiveRequest] = useState<ServiceRequest | null>(null);
+
+  // Delete dialog state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!currentRequest) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/service-requests/${currentRequest.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success(`Service request #${currentRequest.requestNumber} deleted successfully.`);
+        handleClose();
+        onActionComplete();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to delete service request.');
+      }
+    } catch {
+      toast.error('An error occurred while deleting.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Edit & Regenerate state
   const [isEditing, setIsEditing] = useState(false);
@@ -837,13 +866,24 @@ export function ActionModal({ request, open, onClose, onActionComplete }: Action
             <div className={`size-8 rounded-lg ${statusConfig.bg} flex items-center justify-center shrink-0`}>
               <StatusIcon className={`size-4 ${statusConfig.text}`} />
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap flex-1">
               <Badge className={`${statusConfig.bg} ${statusConfig.text} border ${statusConfig.border}`}>
                 {STATUS_LABELS[status] || status}
               </Badge>
               <span className="text-base font-bold">{REQUEST_TYPE_LABELS[currentRequest.requestType] || currentRequest.requestType}</span>
               <span className="text-sm text-muted-foreground font-mono">#{currentRequest.requestNumber}</span>
             </div>
+            {isSuperAdmin && (
+              <Button
+                variant="destructive"
+                size="sm"
+                className="ml-auto shrink-0"
+                onClick={() => setShowDeleteDialog(true)}
+              >
+                <Trash2 className="size-3.5 mr-1" />
+                Delete
+              </Button>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -1535,6 +1575,30 @@ export function ActionModal({ request, open, onClose, onActionComplete }: Action
           </div>
         </div>
       </DialogContent>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="size-5" />
+              Delete Service Request
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete service request #{currentRequest.requestNumber}? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <LoaderIcon className="size-4 mr-1 animate-spin" /> : <Trash2 className="size-4 mr-1" />}
+              {deleting ? 'Deleting...' : 'Delete Permanently'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

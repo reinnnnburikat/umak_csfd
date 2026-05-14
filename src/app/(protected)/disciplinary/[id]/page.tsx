@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  ArrowLeft, Edit2, Save, X, Loader2,
+  ArrowLeft, Edit2, Save, X, Loader2, Trash2,
   ShieldAlert, CheckCircle2, AlertTriangle,
   History, Calendar, User, Building2, Mail, FileText,
   Info, Gavel, Briefcase, Clock, MapPin, ClipboardCheck,
@@ -144,6 +144,10 @@ export default function DisciplinaryCaseDetailPage({
   const [showSettleDialog, setShowSettleDialog] = useState(false);
   const [settleDate, setSettleDate] = useState('');
   const [settling, setSettling] = useState(false);
+
+  // Delete dialog
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchCase = useCallback(async () => {
     try {
@@ -414,6 +418,25 @@ export default function DisciplinaryCaseDetailPage({
     setShowSettleDialog(true);
   };
 
+  const handleDelete = async () => {
+    if (!caseRecord) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/disciplinary/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success('Disciplinary case deleted successfully.');
+        router.push('/disciplinary');
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to delete case.');
+      }
+    } catch {
+      toast.error('An error occurred while deleting.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Helper for deployment status badge
   const getDeploymentStatusBadge = (status: string | null) => {
     switch (status) {
@@ -546,6 +569,16 @@ export default function DisciplinaryCaseDetailPage({
             >
               <Edit2 className="size-4 mr-1" />
               Edit
+            </Button>
+          )}
+          {user?.role === 'superadmin' && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="size-4 mr-1" />
+              Delete
             </Button>
           )}
         </div>
@@ -1498,6 +1531,30 @@ export default function DisciplinaryCaseDetailPage({
                 <ClipboardCheck className="size-4 mr-1.5" />
               )}
               Mark as Settled
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="size-5" />
+              Delete Disciplinary Case
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this disciplinary case? All related offense history records will also be deleted. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Trash2 className="size-4 mr-1" />}
+              {deleting ? 'Deleting...' : 'Delete Permanently'}
             </Button>
           </DialogFooter>
         </DialogContent>

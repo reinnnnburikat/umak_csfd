@@ -2,7 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ClipboardCheck, Clock, CheckCircle2, AlertCircle, Paperclip } from 'lucide-react';
+import { ArrowLeft, ClipboardCheck, Clock, CheckCircle2, AlertCircle, Paperclip, Trash2, Loader2 } from 'lucide-react';
 import { getServeFileUrl, openFileUrl } from '@/lib/file-url';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,14 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 interface PersonInfo {
   givenName: string;
@@ -77,6 +85,7 @@ interface ComplaintRecord {
   modifications: string | null;
   fileUrls: string | null;
   filedCase: string | null;
+  violationType: string | null;
   dynamicAnswers: string | null;
   formVersion: number | null;
   createdAt: string;
@@ -147,16 +156,17 @@ export default function ComplaintDetailPage({
           // Parse dynamic answers if present
           if (data.dynamicAnswers) {
             try {
-              const parsed = JSON.parse(data.dynamicAnswers);
-              setDynamicAnswersMap(parsed);
-              // Fetch form questions to resolve IDs to labels
-              const qRes = await fetch('/api/form-questions');
-              if (qRes.ok) {
-                const qData = await qRes.json();
-                setFormQuestions(qData.data || []);
-              }
+              setDynamicAnswersMap(JSON.parse(data.dynamicAnswers));
             } catch { /* empty */ }
           }
+          // Always fetch form questions to resolve dynamic answer IDs to labels
+          try {
+            const qRes = await fetch('/api/form-questions');
+            if (qRes.ok) {
+              const qData = await qRes.json();
+              setFormQuestions(qData.data || []);
+            }
+          } catch { /* empty */ }
         } else {
           toast.error('Complaint not found.');
           router.push('/complaints');
@@ -171,6 +181,28 @@ export default function ComplaintDetailPage({
   }, [id, router]);
 
   const canEvaluate = user && (user.role === 'staff' || user.role === 'admin' || user.role === 'superadmin');
+
+  // Delete dialog state
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/complaints/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success('Complaint deleted successfully.');
+        router.push('/complaints');
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to delete complaint.');
+      }
+    } catch {
+      toast.error('An error occurred while deleting.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -228,62 +260,124 @@ export default function ComplaintDetailPage({
               Evaluate
             </Button>
           )}
+          {user?.role === 'superadmin' && (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="ml-2"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              <Trash2 className="size-3.5 mr-1" />
+              Delete
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Subject & Description */}
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="size-5" />
+              Delete Complaint
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this complaint? This action cannot be undone and will be permanently recorded in the audit log.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <Loader2 className="size-4 mr-1 animate-spin" /> : <Trash2 className="size-4 mr-1" />}
+              {deleting ? 'Deleting...' : 'Delete Permanently'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Unified Complaint Information */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Complaint Details</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Complaint Information</CardTitle>
+            {complaint.formVersion && (
+              <Badge variant="outline" className="text-[10px]">
+                Form v{complaint.formVersion}
+              </Badge>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Always show Subject */}
           <div>
             <Label className="text-xs uppercase text-muted-foreground">Subject</Label>
             <p className="font-semibold mt-1">{complaint.subject}</p>
           </div>
+
+          {/* Always show Description */}
           <div>
             <Label className="text-xs uppercase text-muted-foreground">Description</Label>
             <p className="text-sm mt-1 whitespace-pre-wrap break-words">{complaint.description}</p>
           </div>
-          {complaint.desiredOutcome && (
-            <div>
-              <Label className="text-xs uppercase text-muted-foreground">Desired Outcome</Label>
-              <p className="text-sm mt-1 whitespace-pre-wrap break-words">{complaint.desiredOutcome}</p>
-            </div>
-          )}
 
-          <Separator />
+          {/* Build dynamic field list */}
+          {(() => {
+            const dynamicFields: Array<{ label: string; value: string }> = [];
+            const alreadyShown = new Set<string>();
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground text-xs uppercase">Date of Incident</span>
-              <p className="font-medium">{complaint.dateOfIncident || '—'}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground text-xs uppercase">Location</span>
-              <p className="font-medium">{complaint.location || '—'}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground text-xs uppercase">Ongoing</span>
-              <p className="font-medium">{complaint.isOngoing || '—'}</p>
-            </div>
-            <div>
-              <span className="text-muted-foreground text-xs uppercase">Category</span>
-              <p className="font-medium">{complaint.complaintCategory || '—'}</p>
-            </div>
-            {complaint.howOften && (
-              <div>
-                <span className="text-muted-foreground text-xs uppercase">How Often</span>
-                <p className="font-medium">{complaint.howOften}</p>
-              </div>
-            )}
-            {complaint.witnesses && (
-              <div>
-                <span className="text-muted-foreground text-xs uppercase">Witnesses</span>
-                <p className="font-medium">{complaint.witnesses}</p>
-              </div>
-            )}
-          </div>
+            // 1. From dynamicAnswers (resolve question IDs to labels)
+            if (Object.keys(dynamicAnswersMap).length > 0) {
+              const qMap = new Map(formQuestions.map((q) => [q.id, q]));
+              for (const [qId, value] of Object.entries(dynamicAnswersMap)) {
+                if (!value) continue;
+                const q = qMap.get(qId);
+                if (q && !alreadyShown.has(q.label)) {
+                  dynamicFields.push({ label: q.label, value });
+                  alreadyShown.add(q.label);
+                }
+              }
+            }
+
+            // 2. From remaining fixed fields that have data
+            const fixedFieldEntries: Array<{ label: string; value: string | null | undefined }> = [
+              { label: 'Desired Outcome', value: complaint.desiredOutcome },
+              { label: 'Filed Case', value: complaint.filedCase },
+              { label: 'Date of Incident', value: complaint.dateOfIncident },
+              { label: 'Location', value: complaint.location },
+              { label: 'Ongoing', value: complaint.isOngoing },
+              { label: 'How Often', value: complaint.howOften },
+              { label: 'Category', value: complaint.complaintCategory },
+              { label: 'Witnesses', value: complaint.witnesses },
+              { label: 'Violation Type', value: complaint.violationType },
+              { label: 'Previous Reports', value: complaint.previousReports },
+            ];
+
+            for (const field of fixedFieldEntries) {
+              if (field.value && !alreadyShown.has(field.label)) {
+                dynamicFields.push({ label: field.label, value: field.value });
+                alreadyShown.add(field.label);
+              }
+            }
+
+            if (dynamicFields.length === 0) return null;
+
+            return (
+              <>
+                <Separator />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  {dynamicFields.map((field, idx) => (
+                    <div key={idx}>
+                      <span className="text-muted-foreground text-xs uppercase">{field.label}</span>
+                      <p className="font-medium whitespace-pre-wrap break-words mt-0.5">{field.value}</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            );
+          })()}
 
           {complaint.encodedByName && (
             <p className="text-xs text-muted-foreground pt-2">
@@ -292,70 +386,6 @@ export default function ComplaintDetailPage({
           )}
         </CardContent>
       </Card>
-
-      {/* Dynamic Form Answers (shown when complaint has formVersion) */}
-      {complaint.formVersion && Object.keys(dynamicAnswersMap).length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Dynamic Form Answers</CardTitle>
-              <Badge variant="outline" className="text-[10px]">
-                Form v{complaint.formVersion}
-              </Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {(() => {
-                // Build a question lookup map
-                const qMap = new Map(formQuestions.map((q) => [q.id, q]));
-                // Group answers by phase
-                const phaseOrder = ['instructions', 'complainant', 'respondent', 'complaint_details', 'review', 'submitted'];
-                const grouped: Record<string, Array<{ qId: string; label: string; value: string; phase: string }>> = {};
-
-                for (const [qId, value] of Object.entries(dynamicAnswersMap)) {
-                  const q = qMap.get(qId);
-                  if (q && value) {
-                    const phase = q.phase || 'other';
-                    if (!grouped[phase]) grouped[phase] = [];
-                    grouped[phase].push({ qId, label: q.label, value, phase });
-                  }
-                }
-
-                // Define well-known field labels to skip (already shown above)
-                const wellKnownLabels = ['Description', 'Desired Outcome', 'Date of Incident', 'Location', 'Ongoing', 'How Often', 'Witnesses', 'Previous Reports', 'Complaint Category', 'Violation Type', 'Subject'];
-
-                return phaseOrder
-                  .filter((phase) => grouped[phase]?.length > 0)
-                  .map((phase) => {
-                    const filtered = grouped[phase].filter(
-                      (item) => !wellKnownLabels.includes(item.label)
-                    );
-                    if (filtered.length === 0) return null;
-
-                    const phaseLabel = phase
-                      .replace(/_/g, ' ')
-                      .replace(/\b\w/g, (c) => c.toUpperCase());
-
-                    return (
-                      <div key={phase}>
-                        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">{phaseLabel}</h4>
-                        <div className="space-y-2">
-                          {filtered.map((item) => (
-                            <div key={item.qId} className="flex flex-col sm:flex-row sm:gap-4 text-sm py-1 border-b border-muted last:border-0">
-                              <span className="text-muted-foreground text-xs uppercase sm:w-48 shrink-0">{item.label}</span>
-                              <p className="whitespace-pre-wrap break-words">{item.value}</p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  });
-              })()}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Complainants */}
       <Card>

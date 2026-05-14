@@ -1261,7 +1261,7 @@ export default function ComplaintPage() {
                 <MapPin className="size-4 text-muted-foreground shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium">Location</p>
-                  <p className="text-muted-foreground">2nd Floor, Main Building<br />University of Makati</p>
+                  <p className="text-muted-foreground">5th Floor, Administrative Building<br />University of Makati</p>
                 </div>
               </div>
               <Separator />

@@ -475,7 +475,7 @@ function footerHtml(): string {
                     <p style="margin:0 0 6px 0; font-weight:700; color:${NAVY}; font-size:13px;">iCSFD+ Automated Notification</p>
                     <p style="margin:0 0 4px 0;">This is an automated message from <strong style="color:${NAVY};">iCSFD+</strong> — the online portal of the Center for Student Formation &amp; Discipline, University of Makati.</p>
                     <p style="margin:8px 0 2px 0; font-weight:600; color:${NAVY};">CSFD Office</p>
-                    <p style="margin:0 0 2px 0;">2nd Floor, Admin Building, University of Makati</p>
+                    <p style="margin:0 0 2px 0;">5th Floor, Administrative Building, University of Makati</p>
                     <p style="margin:2px 0 2px 0;">J.P. Rizal Extension, West Rembo, Makati City</p>
                     <p style="margin:6px 0 2px 0;">📧 <a href="mailto:csfd@umak.edu.ph" style="color:${NAVY}; text-decoration:underline;">csfd@umak.edu.ph</a></p>
                     <p style="margin:8px 0 0 0; font-size:11px; color:#9ca3af;">Please do not reply to this email. For inquiries, visit the CSFD Office or email csfd@umak.edu.ph</p>
@@ -651,14 +651,14 @@ function getStatusSpecificMessage(status: string): string {
     },
     'Issued': {
       icon: '✅',
-      text: 'Your certificate is ready for pickup at <strong>CSFD Office, 2nd Floor, Admin Building</strong>. Please bring a valid ID when claiming.',
+      text: 'Your certificate is ready for pickup at <strong>CSFD Office, 5th Floor, Administrative Building</strong>. Please bring a valid ID when claiming.',
       bgColor: '#ecfdf5',
       borderColor: '#a7f3d0',
       textColor: '#065f46',
     },
     'Ready for Pickup': {
       icon: '✅',
-      text: 'Your certificate is ready for pickup at <strong>CSFD Office, 2nd Floor, Admin Building</strong>. Please bring a valid ID when claiming.',
+      text: 'Your certificate is ready for pickup at <strong>CSFD Office, 5th Floor, Administrative Building</strong>. Please bring a valid ID when claiming.',
       bgColor: '#ecfdf5',
       borderColor: '#a7f3d0',
       textColor: '#065f46',
@@ -1459,7 +1459,7 @@ ${officerRow}
                 <tr>
                   <td style="padding:16px; font-family:'Segoe UI',Arial,Helvetica,sans-serif; font-size:13px; color:#92400e; line-height:1.6;">
                     <strong style="color:${NAVY};">What happens next?</strong><br/>
-                    This citation has been recorded in the CSFD database. Depending on the offense level and count, you may be required to attend a disciplinary conference, perform community service, or other actions as determined by the CSFD office. Please visit the CSFD Office at 2nd Floor, Admin Building, or contact <a href="mailto:csfd@umak.edu.ph" style="color:${NAVY}; text-decoration:underline;">csfd@umak.edu.ph</a> for more information.
+                    This citation has been recorded in the CSFD database. Depending on the offense level and count, you may be required to attend a disciplinary conference, perform community service, or other actions as determined by the CSFD office. Please visit the CSFD Office at 5th Floor, Administrative Building, or contact <a href="mailto:csfd@umak.edu.ph" style="color:${NAVY}; text-decoration:underline;">csfd@umak.edu.ph</a> for more information.
                   </td>
                 </tr>
               </table>
@@ -1629,7 +1629,7 @@ ${settlementRows}
                 <tr>
                   <td style="padding:16px; font-family:'Segoe UI',Arial,Helvetica,sans-serif; font-size:13px; color:#1e40af; line-height:1.6;">
                     <strong>Need more details?</strong><br/>
-                    If you have questions about this update, please visit the CSFD Office at 2nd Floor, Admin Building, or contact <a href="mailto:csfd@umak.edu.ph" style="color:${NAVY}; text-decoration:underline;">csfd@umak.edu.ph</a>.
+                    If you have questions about this update, please visit the CSFD Office at 5th Floor, Administrative Building, or contact <a href="mailto:csfd@umak.edu.ph" style="color:${NAVY}; text-decoration:underline;">csfd@umak.edu.ph</a>.
                   </td>
                 </tr>
               </table>

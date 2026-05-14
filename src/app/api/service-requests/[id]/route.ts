@@ -4,6 +4,7 @@ import { getSessionFromRequest } from '@/lib/session';
 import { sendEmail, serviceRequestStatusUpdateHtml, gmcReleaseEmailHtml } from '@/lib/email';
 import { join } from 'path';
 import { notifyStaff, signalDataRefresh } from '@/lib/notifications';
+import { revalidatePath } from 'next/cache';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -621,6 +622,60 @@ export async function GET(
     console.error('Service request fetch error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch service request' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSessionFromRequest(request);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (session.user.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Forbidden: Only superadmin can delete service requests.' }, { status: 403 });
+    }
+
+    const { id } = await params;
+
+    const existingRequest = await db.serviceRequest.findUnique({
+      where: { id },
+    });
+
+    if (!existingRequest) {
+      return NextResponse.json({ error: 'Service request not found' }, { status: 404 });
+    }
+
+    await db.serviceRequest.delete({
+      where: { id },
+    });
+
+    await db.auditLog.create({
+      data: {
+        performedBy: session.user.id,
+        performerName: session.user.fullName,
+        performerRole: session.user.role,
+        actionType: 'DELETE',
+        module: 'service_request',
+        recordId: id,
+        oldValue: JSON.stringify(existingRequest),
+        newValue: null,
+        remarks: 'Service request deleted by superadmin',
+      },
+    });
+
+    revalidatePath('/service-requests');
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Service request delete error:', error instanceof Error ? error.message : String(error));
+    return NextResponse.json(
+      { error: 'Failed to delete service request' },
       { status: 500 }
     );
   }

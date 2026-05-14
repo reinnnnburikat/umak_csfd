@@ -5,6 +5,7 @@ import { recalculateForStudent, getActionForOffense, getStatusLabel } from '@/li
 import { Prisma } from '@prisma/client';
 import { sendEmail, violationStatusUpdateHtml, downloadFilesAsAttachments, parseFileUrls } from '@/lib/email';
 import { notifyStaff, signalDataRefresh } from '@/lib/notifications';
+import { revalidatePath } from 'next/cache';
 
 // Helper to extract Prisma-specific error details
 function getPrismaErrorDetail(error: unknown): string {
@@ -735,6 +736,68 @@ export async function PATCH(
     console.error('[DISCIPLINARY PATCH] Error detail:', detail);
     return NextResponse.json(
       { error: 'Failed to update disciplinary case', detail },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSessionFromRequest(request);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (session.user.role !== 'superadmin') {
+      return NextResponse.json({ error: 'Forbidden: Only superadmin can delete disciplinary cases.' }, { status: 403 });
+    }
+
+    const { id } = await params;
+
+    const existingCase = await db.disciplinaryCase.findUnique({
+      where: { id },
+    });
+
+    if (!existingCase) {
+      return NextResponse.json({ error: 'Disciplinary case not found' }, { status: 404 });
+    }
+
+    // Delete the case — related OffenseHistory records are auto-deleted via onDelete: Cascade
+    await db.disciplinaryCase.delete({
+      where: { id },
+    });
+
+    await db.auditLog.create({
+      data: {
+        performedBy: session.user.id,
+        performerName: session.user.fullName,
+        performerRole: session.user.role,
+        actionType: 'DELETE',
+        module: 'disciplinary',
+        recordId: id,
+        oldValue: JSON.stringify(existingCase),
+        newValue: null,
+        remarks: 'Disciplinary case deleted by superadmin',
+      },
+    });
+
+    // Recalculate offense counts for the student after deletion
+    try {
+      await recalculateForStudent(existingCase.studentNumber);
+    } catch (recalcError) {
+      console.error('[DELETE] Failed to recalculate offense counts:', getPrismaErrorDetail(recalcError));
+    }
+
+    revalidatePath('/disciplinary');
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Disciplinary case delete error:', error instanceof Error ? error.message : String(error));
+    return NextResponse.json(
+      { error: 'Failed to delete disciplinary case' },
       { status: 500 }
     );
   }

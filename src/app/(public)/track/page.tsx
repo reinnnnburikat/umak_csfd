@@ -676,7 +676,7 @@ export default function TrackPage() {
     ctx.fillStyle = '#6b7280';
     ctx.font = '10px Arial, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('Claim Location: CSFD Office, 2nd Floor, Admin Building', 50, claimY + 8);
+    ctx.fillText('Claim Location: CSFD Office, 5th Floor, Administrative Building', 50, claimY + 8);
 
     // Footer
     ctx.fillStyle = '#9ca3af';
@@ -1094,7 +1094,7 @@ export default function TrackPage() {
               {/* Help card */}
               <div className="mt-4 text-center">
                 <p className="text-xs text-muted-foreground">
-                  Need help? Visit the <span className="font-medium">CSFD Office, 2nd Floor, Admin Building</span> or contact us during office hours.
+                  Need help? Visit the <span className="font-medium">CSFD Office, 5th Floor, Administrative Building</span> or contact us during office hours.
                 </p>
               </div>
             </div>

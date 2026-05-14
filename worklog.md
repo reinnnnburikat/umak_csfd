@@ -400,3 +400,40 @@ Stage Summary:
 - Deactivating a section in CMS now also hides its questions on the public form
 - DnD reorders persist correctly because state is refreshed from server after success
 - All changes pass lint, pushed to GitHub
+
+---
+Task ID: superadmin-delete + dynamic-complaint + office-location
+Agent: Main Agent
+Task: Add super admin delete ability for service requests/complaints/disciplinary cases with audit logging, make complaint detail view dynamic, update CSFD office location
+
+Work Log:
+- Read existing AuditLog model, createAuditLog utility, and audit logs viewer page
+- Read all relevant API routes (service-requests/[id], complaints/[id], disciplinary/[id])
+- Read all detail view pages (complaints/[id]/page, disciplinary/[id]/page, action-modal.tsx)
+- Read email templates in src/lib/email.ts for office location references
+- Added DELETE handlers to 3 API routes (superadmin-only, with audit log entries):
+  - /api/service-requests/[id] - DELETE with audit log (module: service_request)
+  - /api/complaints/[id] - DELETE with audit log (module: complaints)
+  - /api/disciplinary/[id] - DELETE with audit log (module: disciplinary) + offense count recalculation
+- Refactored complaint detail page to be fully dynamic:
+  - Replaced hardcoded "Complaint Details" card + separate "Dynamic Form Answers" card
+  - New unified "Complaint Information" card shows only fields with actual data
+  - Resolves question IDs to labels via CMS form questions
+  - Deduplicates between fixed fields and dynamic answers
+  - Eliminates blank placeholder issue when CMS questions are deleted
+- Added delete UI buttons (superadmin only) to 3 pages:
+  - Complaint detail page: red destructive "Delete" button with confirmation dialog
+  - Disciplinary case detail page: red destructive "Delete" button with confirmation dialog
+  - Service request ActionModal: red destructive "Delete" button with confirmation dialog
+  - Passed isSuperAdmin prop to ActionModal from parent
+- Updated CSFD office location across entire codebase:
+  - "2nd Floor, Admin Building" → "5th Floor, Administrative Building"
+  - Updated in email.ts footer, status messages, violation citations
+  - Updated in public complaint form, track page, track API
+- All changes pass lint cleanly
+
+Stage Summary:
+- DELETE APIs: 3 new endpoints for superadmin deletion with audit logging
+- Dynamic complaint view: No more blank placeholders for deleted CMS questions
+- Delete UI: Confirmation dialogs on complaint detail, disciplinary detail, service request modal
+- Office location: Consistently updated to 5th Floor, Administrative Building
