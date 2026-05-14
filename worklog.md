@@ -66,3 +66,28 @@ Stage Summary:
   2. src/app/api/form-questions/route.ts - isActive added to allowedFields
   3. src/app/(public)/complaint/page.tsx - always show add person button for complainant/respondent
 - Pushed to GitHub: https://github.com/reinnnnburikat/umak_csfd
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Fix remaining client-side crash on Complainant/Respondent tabs
+
+Work Log:
+- User reported error still persists after previous fix (commit ef825f1)
+- Investigated further: previous fix only added try/catch around JSON.parse but didn't handle the actual data shape
+- Root cause: Choices in DB are stored as JSON arrays of objects: `[{"label":"Male","value":"Male"}]`
+- When JSON.parse succeeds, it returns array of objects. The code then tried to render these objects directly as React children
+- React throws: "Objects are not valid as a React child (found: object with keys {label, value})"
+- Fix: Added `.map()` step to extract `.label` property from choice objects before rendering, with proper type checking
+- Applied fix to all 3 cases: dropdown, radio, checkbox in renderFieldPreview()
+- Lint passes with zero errors
+- Pushed to GitHub: commit 51a3d6a
+
+Stage Summary:
+- The ACTUAL crash cause was React trying to render plain objects as children, not the JSON.parse itself
+- Fixed by converting choice objects to their label strings before rendering
+- All 3 original bugs are now properly fixed:
+  1. CMS form crash → Fixed (both JSON.parse safety AND object-to-label extraction)
+  2. Toggle not reflecting → Fixed (isActive in allowedFields)
+  3. Add Complainant/Respondent → Fixed (getPhaseAllowMultiple returns true for these phases)
+- Pushed to GitHub: commit 51a3d6a
