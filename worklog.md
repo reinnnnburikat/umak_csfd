@@ -41,3 +41,28 @@ Stage Summary:
 - **ChoicesEditor** at `src/components/cms/choices-editor.tsx` — manages both static and dynamic choices
 - **Sidebar** updated — CMS Panel now has a collapsible menu with: Complaint Form, Landing Page, Services, Violations, FAQs, Staff Profiles, Email Templates, Certificates, Settings, Audit Logs
 - Pushed to GitHub successfully: `d236c45`
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Fix 3 bugs - CMS form crash, toggle not saving, missing add person button
+
+Work Log:
+- Investigated client-side exception on CMS Complaint Form -> Complainant Info / Respondent Info tabs
+- Root cause: renderFieldPreview() function called JSON.parse(q.choices) without try/catch on 3 code paths (dropdown, radio, checkbox). When choices contained 'dynamic:colleges' or 'dynamic:yearLevels' strings (not valid JSON), the parse threw SyntaxError crashing the page
+- Fix: Wrapped all 3 JSON.parse calls in try/catch with safe fallback (defaults to placeholder options)
+- Investigated toggle (deactivate/activate) not reflecting in UI or DB
+- Root cause: PATCH /api/form-questions had an allowedFields whitelist that excluded 'isActive', so the toggle PATCH silently did nothing
+- Fix: Added 'isActive' to the allowedFields array
+- Investigated missing "Add Complainant" / "Add Respondent" button on public complaint form
+- Root cause: getPhaseAllowMultiple() only returned true if some question had allowMultiple=true, but no questions had this flag set
+- Fix: Made getPhaseAllowMultiple() always return true for complainant/respondent phases
+- Lint passes with zero errors
+- Pushed to GitHub: commit ef825f1
+
+Stage Summary:
+- 3 bugs fixed across 3 files:
+  1. src/app/(protected)/cms/complaint-form/page.tsx - try/catch around JSON.parse for choices
+  2. src/app/api/form-questions/route.ts - isActive added to allowedFields
+  3. src/app/(public)/complaint/page.tsx - always show add person button for complainant/respondent
+- Pushed to GitHub: https://github.com/reinnnnburikat/umak_csfd
