@@ -923,7 +923,7 @@ export default function ComplaintPage() {
                 <div className={`size-10 rounded-xl ${iconBg} flex items-center justify-center`}>
                   <MainIcon className={`size-5 ${iconColor}`} />
                 </div>
-                <CardTitle className={`text-lg font-semibold ${isComplainant ? 'text-umak-blue dark:text-umak-gold' : 'text-umak-blue dark:text-umak-gold'}`}>
+                <CardTitle className={`text-lg font-semibold ${isComplainant ? 'text-umak-blue dark:text-umak-gold' : 'text-purple-600 dark:text-purple-400'}`}>
                   {mainLabel}
                 </CardTitle>
               </div>

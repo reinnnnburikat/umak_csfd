@@ -79,6 +79,7 @@ export default function CertificateConfigPage() {
     const setUploading = type === 'background' ? setUploadingBg : setUploadingSig;
 
     setUploading(true);
+    let uploadedUrl: string | null = null;
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -92,6 +93,7 @@ export default function CertificateConfigPage() {
 
       const data = await res.json();
       const url = data.url;
+      uploadedUrl = url;
 
       // Update config
       const updatePayload: Record<string, string> = {};
@@ -110,7 +112,20 @@ export default function CertificateConfigPage() {
         body: JSON.stringify(updatePayload),
       });
 
-      if (!saveRes.ok) throw new Error('Failed to save uploaded file URL');
+      if (!saveRes.ok) {
+        // Step 2 failed: attempt to clean up the orphaned uploaded file
+        if (uploadedUrl) {
+          fetch('/api/upload', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: uploadedUrl }),
+          }).catch(() => {
+            // Best-effort cleanup — silently ignore failures
+          });
+        }
+        throw new Error('Failed to save uploaded file URL');
+      }
+      uploadedUrl = null; // Ownership transferred — no cleanup needed
       toast.success(`${type === 'background' ? 'Background image' : 'E-signature'} uploaded successfully`);
     } catch {
       toast.error(`Failed to upload ${type === 'background' ? 'background image' : 'e-signature'}`);

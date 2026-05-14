@@ -107,7 +107,7 @@ const STEPS = [
 
 // ─── Progress Bar & Step Indicator ──────────────
 function StepIndicator({ currentStep }: { currentStep: Step }) {
-  const progressPercent = (currentStep / 5) * 100;
+  const progressPercent = ((currentStep - 1) / 4) * 100;
 
   return (
     <div className="mb-8">

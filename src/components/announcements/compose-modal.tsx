@@ -123,6 +123,16 @@ export function ComposeModal({ open, onClose, onCreated, editAnnouncement }: Com
   };
 
   const handleRemoveFile = () => {
+    // Clean up the uploaded file from disk to prevent orphaned files
+    if (uploadedFileUrl) {
+      fetch('/api/upload', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: uploadedFileUrl }),
+      }).catch(() => {
+        // Best-effort cleanup — silently ignore failures
+      });
+    }
     setUploadedFileUrl(null);
     setFileName(null);
   };

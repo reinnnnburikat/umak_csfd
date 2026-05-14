@@ -250,9 +250,21 @@ export function FileUpload({
   }, [maxFiles, uploadFile]);
 
   const removeFile = useCallback((index: number) => {
+    const fileToRemove = filesRef.current[index];
     const updated = filesRef.current.filter((_, i) => i !== index);
     filesRef.current = updated;
     onFilesChangeRef.current(updated);
+
+    // If the file was successfully uploaded, delete it from disk to prevent orphaned files
+    if (fileToRemove?.status === 'uploaded' && fileToRemove.url) {
+      fetch('/api/upload', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: fileToRemove.url }),
+      }).catch(() => {
+        // Best-effort cleanup — silently ignore failures
+      });
+    }
   }, []);
 
   const hasUploading = files.some(f => f.status === 'uploading');

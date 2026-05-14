@@ -112,7 +112,7 @@ export function getFileType(fileUrl: string): 'image' | 'pdf' | 'word' | 'unknow
   }
 
   // Check file extension on the extracted path
-  if (/\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(filePath)) return 'image';
+  if (/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i.test(filePath)) return 'image';
   if (/\.pdf$/i.test(filePath)) return 'pdf';
   if (/\.(doc|docx)$/i.test(filePath)) return 'word';
   return 'unknown';
