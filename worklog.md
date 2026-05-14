@@ -325,3 +325,27 @@ Stage Summary:
 - Violation Type dropdown: Already implemented via ViolationTypeDropdown component pulling from ManagedList; form just had no data
 - Upload error: Server couldn't process requests due to database schema crash; upload API itself was correct
 - Key files modified: prisma/schema.prisma, prisma/seed.ts, src/app/(public)/complaint/page.tsx, src/app/api/upload/route.ts
+---
+Task ID: 1
+Agent: Main Agent
+Task: Push Prisma schema to Supabase PostgreSQL and seed data
+
+Work Log:
+- Updated .env temporarily with Supabase PostgreSQL connection strings (session mode port 5432, transaction mode port 6543)
+- Verified all 14 tables already exist in Supabase (User, ServiceRequest, Complaint, DisciplinaryCase, OffenseHistory, Announcement, Notification, AuditLog, CmsContent, EmailTemplate, ManagedList, ServiceToggle, FormSection, FormQuestion)
+- Verified all FormSection and FormQuestion columns match the schema
+- Found existing form data was from older seed version (only 3 sections, 32 questions without sectionIds)
+- Cleared old FormQuestion (32 rows) and FormSection (3 rows) data
+- Regenerated Prisma Client for PostgreSQL
+- Ran seed against Supabase successfully via `npx tsx prisma/seed.ts`
+- Verified new data: 10 FormSections, 35 FormQuestions, 8 Users, 217 ManagedList items, 6 ServiceToggles
+- Reverted .env back to local SQLite URL
+- Regenerated Prisma Client back for SQLite (local dev)
+- Git repo is clean, no pending changes
+
+Stage Summary:
+- Supabase database is now fully synced with the latest Prisma schema
+- Form structure updated: instructions, complainant (personal+academic), respondent (personal+academic), complaint_details (5 sections)
+- All user accounts upserted (superadmin, admin, 3 staff)
+- Service toggles, managed lists (violation types, colleges, FAQs), and announcements seeded
+- .env reverted to local SQLite for sandbox development
