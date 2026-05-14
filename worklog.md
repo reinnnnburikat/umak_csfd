@@ -113,3 +113,29 @@ Stage Summary:
   4. src/lib/email.ts - verified, no changes needed
 - ESLint passes with zero errors
 - Pushed to GitHub: commit b8f4ebd
+
+---
+Task ID: 3
+Agent: Sub Agent
+Task: Seed FormSection DB records and assign questions
+
+Work Log:
+- Created idempotent seed script at `scripts/seed-sections.ts`
+- Script deletes old section header question (`cmp4nxlod000lkf9els0nkjmr`) if present
+- Script cleans up 2 stale empty sections from previous seeds (`sec_core_details_001`, `sec_timeline_ctx_002`)
+- Created 7 FormSection records in `complaint_details` phase:
+  1. Classification (sortOrder: 0) — Complaint Category, Violation Type
+  2. Details (sortOrder: 1) — Subject, Description, Desired Outcome
+  3. Incident Information (sortOrder: 2) — Date of Incident, Location
+  4. Involvement (sortOrder: 3) — Is this ongoing?, How Often?
+  5. Witnesses (sortOrder: 4) — Witnesses
+  6. Previous Reports (sortOrder: 5) — Have you filed a previous report?
+  7. Evidence & Documentation (sortOrder: 6) — Evidence / Supporting Documents
+- "Evidence & Documentation" section already existed (`sec_evidence_doc_003`) — updated description/sortOrder/isActive instead of creating duplicate
+- Assigned all 12 active complaint_details questions to their sections with proper section-level sortOrder (0, 1, 2...)
+- Verified: 0 unassigned questions remain in `complaint_details` phase
+
+Stage Summary:
+- 7 sections created/updated, 12 questions assigned, 2 stale sections deleted, 1 old section header question deletion confirmed
+- Seed script is idempotent: safe to re-run (checks existence before creating, updates if exists)
+- DB state verified clean via direct query

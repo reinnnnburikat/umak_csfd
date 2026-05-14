@@ -256,6 +256,21 @@ model ServiceToggle {
   @@index([serviceKey])
 }
 
+model FormSection {
+  id          String   @id @default(cuid())
+  phase       String   // instructions, complaint_details, etc.
+  title       String   // Section title (e.g. "Classification", "Details")
+  description String?  // Optional section description/help text
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions   FormQuestion[]
+
+  @@index([phase, isActive, sortOrder])
+}
+
 model FormQuestion {
   id            String   @id @default(cuid())
   phase         String   // instructions, complainant, respondent, complaint_details, review, submitted
@@ -272,9 +287,13 @@ model FormQuestion {
   allowMultiple Boolean  @default(false) // Allow multiple entries (e.g., co-complainants)
   defaultValue  String?  // Default value for the field
   validation    String?  // JSON: { min, max, pattern, customMessage }
+  sectionId     String?  // Optional: link to a FormSection for grouping
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
+  section       FormSection?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
   @@index([phase, isActive, sortOrder])
   @@index([isActive])
+  @@index([sectionId])
 }

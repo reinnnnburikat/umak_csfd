@@ -74,11 +74,22 @@ interface FormQuestion {
   allowMultiple?: boolean;
   defaultValue?: string | null;
   validation?: string | null;
+  sectionId?: string | null;
+}
+
+interface FormSection {
+  id: string;
+  phase: string;
+  title: string;
+  description: string | null;
+  sortOrder: number;
+  isActive: boolean;
 }
 
 interface FormConfig {
   version: number;
   phases: Record<string, FormQuestion[]>;
+  sections: Record<string, FormSection[]>;
 }
 
 interface PersonInfo {
@@ -989,20 +1000,28 @@ export default function ComplaintPage() {
           </button>
         )}
 
-        {Object.keys(errors).length > 0 && (
-          <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
-            <p className="text-sm text-destructive font-medium">
-              {Object.keys(errors).length} required field(s) need attention. Please check the highlighted fields above.
-            </p>
-            {Object.keys(errors).length <= 5 && (
-              <ul className="mt-2 text-xs text-destructive/80 space-y-1 list-disc list-inside">
-                {Object.entries(errors).filter(([, v]) => v && v.trim()).map(([key, msg]) => (
-                  <li key={key}>{msg}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        {(() => {
+          // Filter errors to only show those relevant to this person phase
+          // Person errors use format "index.questionId" (e.g., "0.givenName")
+          const phaseErrors = Object.entries(errors).filter(
+            ([key]) => /^\d+\./.test(key) || key === 'submit'
+          );
+          if (phaseErrors.length === 0) return null;
+          return (
+            <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
+              <p className="text-sm text-destructive font-medium">
+                {phaseErrors.filter(([, v]) => v?.trim()).length} required field(s) need attention. Please check the highlighted fields above.
+              </p>
+              {phaseErrors.length <= 5 && (
+                <ul className="mt-2 text-xs text-destructive/80 space-y-1 list-disc list-inside">
+                  {phaseErrors.filter(([, v]) => v && v.trim()).map(([key, msg]) => (
+                    <li key={key}>{msg}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          );
+        })()}
 
         {Object.keys(collegeOtherErrors).length > 0 && (
           <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
@@ -1199,270 +1218,212 @@ export default function ComplaintPage() {
     </div>
   );
 
-  // ── Step 4: Complaint Details ──
+  // ── Step 4: Complaint Details (Fully Dynamic Section-based) ──
   const renderStep4 = () => {
     const questions = getPhaseQuestions('complaint_details');
     const answers = formData.dynamicAnswers;
+    const detailSections = formConfig?.sections?.complaint_details || [];
 
-    // Determine if we need the ViolationTypeDropdown (special field)
-    const hasViolationType = questions.some(q => q.id === 'violationType');
-    const hasFileUpload = questions.some(q => q.fieldType === 'file_upload');
+    // Sort sections by sortOrder
+    const sortedSections = [...detailSections].sort((a, b) => a.sortOrder - b.sortOrder);
+
+    // 7 gradient color styles cycling through section index
+    const sectionGradients = [
+      'from-umak-blue to-umak-gold',
+      'from-amber-500 to-amber-400',
+      'from-teal-500 to-teal-400',
+      'from-purple-500 to-purple-400',
+      'from-emerald-500 to-emerald-400',
+      'from-rose-500 to-rose-400',
+      'from-cyan-500 to-cyan-400',
+    ];
+
+    // Collect all section IDs for filtering unsectioned questions
+    const sectionIds = new Set(sortedSections.map(s => s.id));
+    const unsectionedQuestions = questions.filter(q =>
+      q.fieldType !== 'section_header' && !q.sectionId && !sectionIds.has(q.sectionId || '')
+    );
+
+    // Filter errors to only complaint_details phase (keys without a dot, i.e. direct question IDs)
+    const stepErrors = Object.entries(errors).filter(
+      ([key]) => !key.includes('.') && key !== 'submit'
+    );
+
+    // Helper: check if a question uses violation type dynamic choices
+    const isViolationTypeQuestion = (q: FormQuestion) =>
+      q.choices?.startsWith('dynamic:violation_');
+
+    // Helper: determine field width class
+    const getFieldGridClass = (q: FormQuestion) => {
+      if (q.fieldType === 'long_text' || q.fieldType === 'file_upload') return 'col-span-1 sm:col-span-2';
+      return '';
+    };
 
     return (
       <div className="animate-fade-in space-y-6">
-        {/* Core Complaint Details */}
-        <Card className="border-border/50 overflow-hidden">
-          <div className="h-1.5 bg-gradient-to-r from-umak-blue to-umak-gold" />
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-umak-blue/10 dark:bg-umak-gold/10 flex items-center justify-center">
-                <FileText className="size-5 text-umak-blue dark:text-umak-gold" />
-              </div>
-              <CardTitle className="text-lg font-semibold text-umak-blue dark:text-umak-gold">
-                CORE COMPLAINT DETAILS
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Classification Section */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="size-1.5 rounded-full bg-umak-blue dark:bg-umak-gold" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-umak-blue/70 dark:text-umak-gold/70">Classification</h4>
-                <div className="flex-1 h-px bg-border/50" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {questions.filter(q => q.id === 'complaintCategory').map(q => {
-                  const listType = getDynamicListType(q.choices);
-                  const dynamicChoices = listType ? dynamicLists[listType] || null : null;
-                  return (
-                    <DynamicField
-                      key={q.id}
-                      question={q}
-                      value={answers[q.id] || ''}
-                      onChange={updateDynamicAnswer}
-                      error={errors[q.id]}
-                      dynamicChoices={dynamicChoices}
-                    />
-                  );
-                })}
-                {hasViolationType && (
-                  <ViolationTypeDropdown
-                    value={answers['violationType'] || ''}
-                    onChange={(v) => updateDynamicAnswer('violationType', v)}
-                    otherValue={violationTypeOtherRef.current}
-                    onOtherChange={(v) => { violationTypeOtherRef.current = v; }}
-                  />
-                )}
-              </div>
-            </div>
+        {sortedSections.map((section, sIdx) => {
+          const gradient = sectionGradients[sIdx % sectionGradients.length];
 
-            {/* Details Section */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="size-1.5 rounded-full bg-umak-blue dark:bg-umak-gold" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-umak-blue/70 dark:text-umak-gold/70">Details</h4>
-                <div className="flex-1 h-px bg-border/50" />
-              </div>
-              <div className="space-y-4">
-                {questions.filter(q =>
-                  q.fieldType !== 'section_header' &&
-                  q.id !== 'complaintCategory' &&
-                  q.id !== 'violationType' &&
-                  q.id !== 'dateOfIncident' &&
-                  q.id !== 'location' &&
-                  q.id !== 'isOngoing' &&
-                  q.id !== 'howOften' &&
-                  q.id !== 'witnesses' &&
-                  q.id !== 'previousReports' &&
-                  q.id !== 'file_upload' &&
-                  q.fieldType !== 'file_upload'
-                ).map(q => {
-                  const listType = getDynamicListType(q.choices);
-                  const dynamicChoices = listType ? dynamicLists[listType] || null : null;
-                  return (
-                    <DynamicField
-                      key={q.id}
-                      question={q}
-                      value={answers[q.id] || ''}
-                      onChange={updateDynamicAnswer}
-                      error={errors[q.id]}
-                      dynamicChoices={dynamicChoices}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          // Get questions belonging to this section (non-section_header, sorted by sortOrder)
+          const sectionQuestions = questions
+            .filter(q => q.sectionId === section.id && q.fieldType !== 'section_header')
+            .sort((a, b) => a.sortOrder - b.sortOrder);
 
-        {/* Timeline & Context */}
-        <Card className="border-border/50 overflow-hidden">
-          <div className="h-1.5 bg-gradient-to-r from-amber-500 to-amber-400" />
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-amber-500/10 flex:bg-amber-400/10 flex items-center justify-center">
-                <CalendarDays className="size-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <CardTitle className="text-lg font-semibold text-umak-blue dark:text-umak-gold">
-                TIMELINE &amp; CONTEXT
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* When & Where Section */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="size-1.5 rounded-full bg-amber-500" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-600/70 dark:text-amber-400/70">When &amp; Where</h4>
-                <div className="flex-1 h-px bg-border/50" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {questions.filter(q => q.id === 'dateOfIncident').map(q => (
-                  <DynamicField
-                    key={q.id}
-                    question={q}
-                    value={answers[q.id] || ''}
-                    onChange={updateDynamicAnswer}
-                    error={errors[q.id]}
-                    dynamicChoices={null}
-                  />
-                ))}
-                {questions.filter(q => q.id === 'location').map(q => (
-                  <DynamicField
-                    key={q.id}
-                    question={q}
-                    value={answers[q.id] || ''}
-                    onChange={updateDynamicAnswer}
-                    error={errors[q.id]}
-                    dynamicChoices={null}
-                  />
-                ))}
-              </div>
-            </div>
+          // Check if this section has a file_upload question
+          const hasFileUpload = sectionQuestions.some(q => q.fieldType === 'file_upload');
 
-            {/* Context Section */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="size-1.5 rounded-full bg-amber-500" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-amber-600/70 dark:text-amber-400/70">Context</h4>
-                <div className="flex-1 h-px bg-border/50" />
-              </div>
-              <div className="space-y-4">
-                {questions.filter(q => q.id === 'isOngoing').map(q => {
-                  const listType = getDynamicListType(q.choices);
-                  const dynamicChoices = listType ? dynamicLists[listType] || null : null;
-                  return (
-                    <DynamicField
-                      key={q.id}
-                      question={q}
-                      value={answers[q.id] || ''}
-                      onChange={updateDynamicAnswer}
-                      error={errors[q.id]}
-                      dynamicChoices={dynamicChoices}
-                    />
-                  );
-                })}
-                {(answers['isOngoing'] === 'Yes') && questions.filter(q => q.id === 'howOften').map(q => (
-                  <div key={q.id} className="animate-fade-in ml-4 pl-4 border-l-2 border-amber-500/20">
-                    <DynamicField
-                      question={q}
-                      value={answers[q.id] || ''}
-                      onChange={updateDynamicAnswer}
-                      error={errors[q.id]}
-                      dynamicChoices={null}
-                    />
+          return (
+            <Card key={section.id} className="border-border/50 overflow-hidden">
+              <div className={`h-1.5 bg-gradient-to-r ${gradient}`} />
+              <CardHeader>
+                <div className="flex items-center gap-3">
+                  <div className="size-10 rounded-xl bg-umak-blue/10 dark:bg-umak-gold/10 flex items-center justify-center">
+                    <FileText className="size-5 text-umak-blue dark:text-umak-gold" />
                   </div>
-                ))}
-                {questions.filter(q => q.id === 'witnesses').map(q => (
-                  <DynamicField
-                    key={q.id}
-                    question={q}
-                    value={answers[q.id] || ''}
-                    onChange={updateDynamicAnswer}
-                    error={errors[q.id]}
-                    dynamicChoices={null}
-                  />
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Evidence & Documentation */}
-        <Card className="border-border/50 overflow-hidden">
-          <div className="h-1.5 bg-gradient-to-r from-teal-500 to-teal-400" />
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-teal-500/10 flex items-center justify-center">
-                <Paperclip className="size-5 text-teal-600 dark:text-teal-400" />
-              </div>
-              <CardTitle className="text-lg font-semibold text-umak-blue dark:text-umak-gold">
-                EVIDENCE &amp; DOCUMENTATION
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Previous Reports */}
-            {questions.filter(q => q.id === 'previousReports').map(q => {
-              const listType = getDynamicListType(q.choices);
-              const dynamicChoices = listType ? dynamicLists[listType] || null : null;
-              return (
-                <div key={q.id}>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="size-1.5 rounded-full bg-teal-500" />
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-teal-600/70 dark:text-teal-400/70">Previous Reports</h4>
-                    <div className="flex-1 h-px bg-border/50" />
+                  <div>
+                    <CardTitle className="text-lg font-semibold text-umak-blue dark:text-umak-gold">
+                      {section.title.toUpperCase()}
+                    </CardTitle>
+                    {section.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{section.description}</p>
+                    )}
                   </div>
-                  <DynamicField
-                    question={q}
-                    value={answers[q.id] || ''}
-                    onChange={updateDynamicAnswer}
-                    error={errors[q.id]}
-                    dynamicChoices={dynamicChoices}
-                  />
                 </div>
-              );
-            })}
+              </CardHeader>
+              <CardContent className="space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {sectionQuestions.map(q => {
+                    // File upload — render FileUpload component (full width)
+                    if (q.fieldType === 'file_upload') {
+                      return (
+                        <div key={q.id} className="col-span-1 sm:col-span-2">
+                          <FileUpload
+                            files={formData.files}
+                            onFilesChange={(files) => setFormData(prev => ({ ...prev, files }))}
+                            maxFileSize={10 * 1024 * 1024}
+                            maxFiles={5}
+                            label={q.label || 'Supporting Evidence (Optional)'}
+                            hint={q.helpText || 'PDF, DOC, DOCX, JPG, PNG (max 10MB each, up to 5 files)'}
+                          />
+                        </div>
+                      );
+                    }
 
-            {/* File Upload */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <div className="size-1.5 rounded-full bg-teal-500" />
-                <h4 className="text-xs font-bold uppercase tracking-wider text-teal-600/70 dark:text-teal-400/70">Supporting Files</h4>
-                <div className="flex-1 h-px bg-border/50" />
+                    // Violation type — use special dropdown (detect by dynamic:violation_ choices)
+                    if (isViolationTypeQuestion(q)) {
+                      return (
+                        <div key={q.id} className="col-span-1 sm:col-span-2">
+                          <ViolationTypeDropdown
+                            value={answers[q.id] || ''}
+                            onChange={(v) => updateDynamicAnswer(q.id, v)}
+                            otherValue={violationTypeOtherRef.current}
+                            onOtherChange={(v) => { violationTypeOtherRef.current = v; }}
+                          />
+                        </div>
+                      );
+                    }
+
+                    // howOften — only show when isOngoing is "Yes" (Involvement section)
+                    if (q.id === 'howOften' && answers['isOngoing'] !== 'Yes') {
+                      return null;
+                    }
+
+                    const listType = getDynamicListType(q.choices);
+                    const dynamicChoices = listType ? dynamicLists[listType] || null : null;
+                    const gridClass = getFieldGridClass(q);
+
+                    // howOften gets special slide-in treatment
+                    if (q.id === 'howOften') {
+                      return (
+                        <div key={q.id} className={`col-span-1 sm:col-span-2 animate-fade-in`}>
+                          <div className="ml-4 pl-4 border-l-2 border-amber-500/20">
+                            <DynamicField
+                              question={q}
+                              value={answers[q.id] || ''}
+                              onChange={updateDynamicAnswer}
+                              error={errors[q.id]}
+                              dynamicChoices={dynamicChoices}
+                            />
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div key={q.id} className={gridClass}>
+                        <DynamicField
+                          question={q}
+                          value={answers[q.id] || ''}
+                          onChange={updateDynamicAnswer}
+                          error={errors[q.id]}
+                          dynamicChoices={dynamicChoices}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Amber warning box for file upload section */}
+                {hasFileUpload && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50">
+                    <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
+                      Upload a copy of your evidence with a maximum file size of 10MB. For larger files,
+                      upload it through an online storage/cloud and send it through email of CSFD at{' '}
+                      <a href="mailto:csfd@umak.edu.ph" className="underline font-medium">
+                        csfd@umak.edu.ph
+                      </a>
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+
+        {/* Additional Questions (not in any section) */}
+        {unsectionedQuestions.length > 0 && (
+          <Card className="border-border/50 overflow-hidden">
+            <div className="h-1.5 bg-gradient-to-r from-gray-400 to-gray-300" />
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-xl bg-gray-500/10 flex items-center justify-center">
+                  <ClipboardList className="size-5 text-gray-500" />
+                </div>
+                <CardTitle className="text-lg font-semibold text-umak-blue dark:text-umak-gold">
+                  ADDITIONAL QUESTIONS
+                </CardTitle>
               </div>
-              <FileUpload
-                files={formData.files}
-                onFilesChange={(files) => setFormData(prev => ({ ...prev, files }))}
-                maxFileSize={10 * 1024 * 1024}
-                maxFiles={5}
-                label="Supporting Evidence (Optional)"
-                hint="PDF, DOC, DOCX, JPG, PNG (max 10MB each, up to 5 files)"
-              />
-            </div>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {unsectionedQuestions.sort((a, b) => a.sortOrder - b.sortOrder).map(q => {
+                if (q.id === 'howOften' && answers['isOngoing'] !== 'Yes') return null;
+                const listType = getDynamicListType(q.choices);
+                const dynamicChoices = listType ? dynamicLists[listType] || null : null;
+                return (
+                  <div key={q.id}>
+                    <DynamicField
+                      question={q}
+                      value={answers[q.id] || ''}
+                      onChange={updateDynamicAnswer}
+                      error={errors[q.id]}
+                      dynamicChoices={dynamicChoices}
+                    />
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
 
-            <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50">
-              <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700 dark:text-amber-300">
-                Upload a copy of your evidence with a maximum file size of 10MB. For larger files,
-                upload it through an online storage/cloud and send it through email of CSFD at{' '}
-                <a href="mailto:csfd@umak.edu.ph" className="underline font-medium">
-                  csfd@umak.edu.ph
-                </a>
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {Object.keys(errors).length > 0 && !errors.submit && (
+        {stepErrors.length > 0 && (
           <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
             <p className="text-sm text-destructive font-medium">
-              {Object.keys(errors).length} required field(s) need attention. Please check the highlighted fields above.
+              {stepErrors.filter(([, v]) => v?.trim()).length} required field(s) need attention. Please check the highlighted fields above.
             </p>
-            {Object.keys(errors).length <= 5 && (
+            {stepErrors.length <= 5 && (
               <ul className="mt-2 text-xs text-destructive/80 space-y-1 list-disc list-inside">
-                {Object.entries(errors).filter(([, v]) => v && v.trim()).map(([key, msg]) => (
+                {stepErrors.filter(([, v]) => v && v.trim()).map(([key, msg]) => (
                   <li key={key}>{msg}</li>
                 ))}
               </ul>
@@ -1549,68 +1510,89 @@ export default function ComplaintPage() {
       );
     };
 
-    // Helper to render complaint details grouped by sections
+    // Helper to render complaint details grouped by real FormSection records
     const renderDetailSections = () => {
-      const sections: { header: FormQuestion | null; fields: FormQuestion[] }[] = [];
-      let currentHeader: FormQuestion | null = null;
-      let currentFields: FormQuestion[] = [];
+      const detailSections = formConfig?.sections?.complaint_details || [];
+      const sortedSections = [...detailSections].sort((a, b) => a.sortOrder - b.sortOrder);
 
-      for (const q of detailQuestions) {
-        if (q.fieldType === 'section_header') {
-          if (currentFields.length > 0 || currentHeader) {
-            sections.push({ header: currentHeader, fields: currentFields });
-          }
-          currentHeader = q;
-          currentFields = [];
-        } else if (q.fieldType === 'file_upload') {
-          // skip file upload in review
-          continue;
-        } else {
-          currentFields.push(q);
-        }
-      }
-      if (currentFields.length > 0 || currentHeader) {
-        sections.push({ header: currentHeader, fields: currentFields });
-      }
+      // 7 gradient colors for section headers in review
+      const sectionGradients = [
+        'from-umak-blue to-umak-gold',
+        'from-amber-500 to-amber-400',
+        'from-teal-500 to-teal-400',
+        'from-purple-500 to-purple-400',
+        'from-emerald-500 to-emerald-400',
+        'from-rose-500 to-rose-400',
+        'from-cyan-500 to-cyan-400',
+      ];
 
-      return sections.map((section, sIdx) => (
-        <div key={sIdx}>
-          {section.header && (
+      // Check if question uses violation type dynamic choices
+      const isViolationTypeQ = (q: FormQuestion) => q.choices?.startsWith('dynamic:violation_');
+
+      return sortedSections.map((section, sIdx) => {
+        // Get questions for this section (skip section_header and file_upload types)
+        const sectionQuestions = detailQuestions
+          .filter(q => q.sectionId === section.id && q.fieldType !== 'section_header' && q.fieldType !== 'file_upload')
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+
+        // Get only filled answers
+        const filledFields = sectionQuestions.filter(q => {
+          const val = answers[q.id];
+          if (!val || val.trim() === '') return false;
+          return true;
+        });
+
+        // Skip empty sections
+        if (filledFields.length === 0) return null;
+
+        return (
+          <div key={section.id} className="space-y-3">
+            {/* Section header */}
             <div className="flex items-center gap-2 mb-3">
-              <div className="size-1.5 rounded-full bg-umak-blue dark:bg-umak-gold" />
-              <h4 className="text-xs font-bold uppercase tracking-wider text-umak-blue/70 dark:text-umak-gold/70">{section.header.label}</h4>
+              <div className={`h-1 w-4 rounded-full bg-gradient-to-r ${sectionGradients[sIdx % sectionGradients.length]}`} />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-umak-blue/70 dark:text-umak-gold/70">{section.title}</h4>
               <div className="flex-1 h-px bg-border/50" />
             </div>
-          )}
-          <div className={section.fields.length <= 2 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : 'space-y-3'}>
-            {section.fields.map(q => {
-              const val = answers[q.id];
-              // Special handling for violation type
-              if (q.id === 'violationType') {
-                if (!val || (val !== '__other__' && !violationTypeOtherRef.current && !val.trim())) return null;
+            {/* Fields grid */}
+            <div className={filledFields.length <= 2 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : 'space-y-3'}>
+              {filledFields.map(q => {
+                const val = answers[q.id];
+                // Special handling for violation type
+                if (isViolationTypeQ(q)) {
+                  if (!val || (val !== '__other__' && !violationTypeOtherRef.current && !val.trim())) return null;
+                  return (
+                    <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30 sm:col-span-2">
+                      <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
+                      <p className="text-sm font-medium">{val === '__other__' ? violationTypeOtherRef.current : val}</p>
+                    </div>
+                  );
+                }
+                if (!val || val.trim() === '') return null;
+                // Date formatting
+                let displayVal = val;
+                if (q.fieldType === 'date') {
+                  try { displayVal = format(new Date(val), 'MMMM d, yyyy'); } catch { /* keep raw */ }
+                }
+                // Long text fields get full width
+                if (q.fieldType === 'long_text') {
+                  return (
+                    <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30 sm:col-span-2">
+                      <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
+                      <p className="text-sm font-medium whitespace-pre-wrap">{displayVal}</p>
+                    </div>
+                  );
+                }
                 return (
-                  <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30 sm:col-span-2">
+                  <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30">
                     <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
-                    <p className="text-sm font-medium">{val === '__other__' ? violationTypeOtherRef.current : val}</p>
+                    <p className="text-sm font-medium whitespace-pre-wrap">{displayVal}</p>
                   </div>
                 );
-              }
-              if (!val || val.trim() === '') return null;
-              // Date formatting
-              let displayVal = val;
-              if (q.fieldType === 'date') {
-                try { displayVal = format(new Date(val), 'MMMM d, yyyy'); } catch { /* keep raw */ }
-              }
-              return (
-                <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30">
-                  <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
-                  <p className="text-sm font-medium whitespace-pre-wrap">{displayVal}</p>
-                </div>
-              );
-            })}
+              })}
+            </div>
           </div>
-        </div>
-      ));
+        );
+      });
     };
 
     return (

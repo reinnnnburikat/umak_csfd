@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Plus,
   Pencil,
   Trash2,
   ChevronUp,
   ChevronDown,
+  ChevronRight,
   FileText,
   Loader2,
   User,
@@ -21,6 +22,10 @@ import {
   Hash,
   Mail,
   Heading,
+  GripVertical,
+  FolderOpen,
+  FolderPlus,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -56,10 +61,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { toast } from 'sonner';
 import { ChoicesEditor } from '@/components/cms/choices-editor';
 
 // ── Types ────────────────────────────────────────────────────────────────
+interface FormSection {
+  id: string;
+  phase: string;
+  title: string;
+  description: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { questions: number };
+}
+
 interface FormQuestion {
   id: string;
   phase: string;
@@ -76,6 +98,7 @@ interface FormQuestion {
   allowMultiple: boolean;
   defaultValue: string | null;
   validation: string | null;
+  sectionId: string | null;
 }
 
 interface QuestionFormData {
@@ -93,6 +116,7 @@ interface QuestionFormData {
   validationMax: string;
   validationPattern: string;
   validationMessage: string;
+  sectionId: string;
 }
 
 // ── Constants ────────────────────────────────────────────────────────────
@@ -144,6 +168,7 @@ const EMPTY_FORM: QuestionFormData = {
   validationMax: '',
   validationPattern: '',
   validationMessage: '',
+  sectionId: '',
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────
@@ -373,6 +398,15 @@ export default function ComplaintFormBuilderPage() {
   // Delete state
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // ── Section state ─────────────────────────────────────────────────────
+  const [sections, setSections] = useState<FormSection[]>([]);
+  const [sectionLoading, setSectionLoading] = useState(false);
+  const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
+  const [editingSection, setEditingSection] = useState<FormSection | null>(null);
+  const [newSectionTitle, setNewSectionTitle] = useState('');
+  const [newSectionDesc, setNewSectionDesc] = useState('');
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
+
   // ── Fetch questions ──────────────────────────────────────────────────
   const fetchQuestions = useCallback(async () => {
     try {
@@ -391,19 +425,232 @@ export default function ComplaintFormBuilderPage() {
     }
   }, [activeTab]);
 
+  // ── Fetch sections ───────────────────────────────────────────────────
+  const fetchSections = useCallback(async () => {
+    try {
+      setSectionLoading(true);
+      const res = await fetch('/api/form-sections?phase=complaint_details');
+      if (res.ok) {
+        const json = await res.json();
+        const sectionData: FormSection[] = json.data || [];
+        setSections(sectionData);
+        // Expand all sections by default
+        setExpandedSections(new Set(sectionData.map(s => s.id)));
+      } else {
+        toast.error('Failed to load sections');
+      }
+    } catch {
+      toast.error('Failed to load sections');
+    } finally {
+      setSectionLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     fetchQuestions();
   }, [fetchQuestions]);
 
+  useEffect(() => {
+    if (activeTab === 'complaint_details') {
+      fetchSections();
+    }
+  }, [activeTab, fetchSections]);
+
+  // ── Section toggle expand ────────────────────────────────────────────
+  const toggleSectionExpand = (sectionId: string) => {
+    setExpandedSections(prev => {
+      const next = new Set(prev);
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+      return next;
+    });
+  };
+
+  // ── Section CRUD ─────────────────────────────────────────────────────
+  const handleOpenAddSection = (preFillSectionId?: string) => {
+    setEditingSection(null);
+    setNewSectionTitle('');
+    setNewSectionDesc('');
+    setSectionDialogOpen(true);
+  };
+
+  const handleOpenEditSection = (section: FormSection) => {
+    setEditingSection(section);
+    setNewSectionTitle(section.title);
+    setNewSectionDesc(section.description || '');
+    setSectionDialogOpen(true);
+  };
+
+  const handleSaveSection = async () => {
+    if (!newSectionTitle.trim()) {
+      toast.error('Section title is required');
+      return;
+    }
+
+    try {
+      if (editingSection) {
+        // Update
+        const res = await fetch('/api/form-sections', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editingSection.id,
+            title: newSectionTitle.trim(),
+            description: newSectionDesc.trim() || null,
+          }),
+        });
+        if (!res.ok) throw new Error('Failed to update section');
+        toast.success('Section updated successfully');
+      } else {
+        // Create
+        const res = await fetch('/api/form-sections', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phase: 'complaint_details',
+            title: newSectionTitle.trim(),
+            description: newSectionDesc.trim() || null,
+            sortOrder: sections.length,
+          }),
+        });
+        if (!res.ok) throw new Error('Failed to create section');
+        toast.success('Section created successfully');
+      }
+
+      setSectionDialogOpen(false);
+      fetchSections();
+      fetchQuestions();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save section');
+    }
+  };
+
+  const handleDeleteSection = async (sectionId: string) => {
+    try {
+      const res = await fetch('/api/form-sections', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: sectionId }),
+      });
+      if (!res.ok) throw new Error('Failed to delete section');
+      toast.success('Section deleted successfully');
+      fetchSections();
+      fetchQuestions();
+    } catch {
+      toast.error('Failed to delete section');
+    }
+  };
+
+  const handleToggleSectionActive = async (section: FormSection) => {
+    try {
+      const res = await fetch('/api/form-sections', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: section.id, isActive: !section.isActive }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(`Section ${section.isActive ? 'deactivated' : 'activated'} successfully`);
+      fetchSections();
+    } catch {
+      toast.error('Failed to toggle section status');
+    }
+  };
+
+  const handleReorderSection = async (index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= sections.length) return;
+
+    const reordered = [...sections];
+    const temp = reordered[index];
+    reordered[index] = reordered[newIndex];
+    reordered[newIndex] = temp;
+
+    // Optimistic update
+    setSections(reordered);
+
+    try {
+      // Update sortOrder for each section
+      for (let i = 0; i < reordered.length; i++) {
+        await fetch('/api/form-sections', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: reordered[i].id, sortOrder: i }),
+        });
+      }
+    } catch {
+      toast.error('Failed to reorder sections');
+      fetchSections();
+    }
+  };
+
+  // ── Move question to section ─────────────────────────────────────────
+  const handleMoveQuestionToSection = async (questionId: string, targetSectionId: string | null) => {
+    try {
+      const res = await fetch('/api/form-questions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: questionId,
+          sectionId: targetSectionId || null,
+        }),
+      });
+      if (!res.ok) throw new Error();
+      toast.success(targetSectionId ? 'Question moved to section' : 'Question moved to unsectioned');
+      fetchQuestions();
+      fetchSections();
+    } catch {
+      toast.error('Failed to move question');
+    }
+  };
+
+  // ── Reorder questions within a section ───────────────────────────────
+  const handleReorderInSection = async (sectionQuestions: FormQuestion[], index: number, direction: 'up' | 'down') => {
+    const newIndex = direction === 'up' ? index - 1 : index + 1;
+    if (newIndex < 0 || newIndex >= sectionQuestions.length) return;
+
+    const reordered = [...sectionQuestions];
+    const temp = reordered[index];
+    reordered[index] = reordered[newIndex];
+    reordered[newIndex] = temp;
+
+    // Optimistic update
+    setQuestions(prev => {
+      const inSectionIds = new Set(reordered.map(q => q.id));
+      return [
+        ...prev.filter(q => !inSectionIds.has(q.id)),
+        ...reordered,
+      ];
+    });
+
+    try {
+      const questionIds = reordered.map(q => q.id);
+      const res = await fetch('/api/form-questions/reorder', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phase: activeTab, questionIds }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      toast.error('Failed to reorder questions');
+      fetchQuestions();
+    }
+  };
+
   // ── Show Add dialog ──────────────────────────────────────────────────
-  const handleOpenAdd = () => {
+  const handleOpenAdd = (preFillSectionId?: string) => {
     setEditingQuestion(null);
-    setForm(EMPTY_FORM);
+    setForm({
+      ...EMPTY_FORM,
+      sectionId: preFillSectionId || '',
+    });
     setDialogOpen(true);
   };
 
   // ── Show Add Section dialog (pre-filled as section_header) ──────────
-  const handleOpenAddSection = () => {
+  const handleOpenAddSectionHeader = () => {
     setEditingQuestion(null);
     setForm({
       ...EMPTY_FORM,
@@ -429,6 +676,7 @@ export default function ComplaintFormBuilderPage() {
       content: q.content || '',
       allowMultiple: q.allowMultiple,
       defaultValue: q.defaultValue || '',
+      sectionId: q.sectionId || '',
       ...parsedValidation,
     });
     setDialogOpen(true);
@@ -448,7 +696,7 @@ export default function ComplaintFormBuilderPage() {
         ? form.choices.trim()
         : null;
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         phase: activeTab,
         fieldType: form.fieldType,
         label: form.label.trim(),
@@ -463,6 +711,11 @@ export default function ComplaintFormBuilderPage() {
         defaultValue: form.defaultValue.trim() || null,
         validation: buildValidationPayload(form),
       };
+
+      // Include sectionId for complaint_details phase
+      if (activeTab === 'complaint_details') {
+        payload.sectionId = form.sectionId || null;
+      }
 
       let res: Response;
       if (editingQuestion) {
@@ -487,6 +740,7 @@ export default function ComplaintFormBuilderPage() {
       toast.success(editingQuestion ? 'Question updated successfully' : 'Question added successfully');
       setDialogOpen(false);
       fetchQuestions();
+      if (activeTab === 'complaint_details') fetchSections();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save question');
     } finally {
@@ -522,6 +776,7 @@ export default function ComplaintFormBuilderPage() {
       if (!res.ok) throw new Error();
       toast.success('Question deleted successfully');
       fetchQuestions();
+      if (activeTab === 'complaint_details') fetchSections();
     } catch {
       toast.error('Failed to delete question');
     } finally {
@@ -529,7 +784,7 @@ export default function ComplaintFormBuilderPage() {
     }
   };
 
-  // ── Reorder (up/down) ────────────────────────────────────────────────
+  // ── Reorder (up/down) — for instructions and unsectioned ────────────
   const handleReorder = async (index: number, direction: 'up' | 'down') => {
     const newIndex = direction === 'up' ? index - 1 : index + 1;
     if (newIndex < 0 || newIndex >= questions.length) return;
@@ -556,6 +811,23 @@ export default function ComplaintFormBuilderPage() {
     }
   };
 
+  // ── Derived data for complaint_details ───────────────────────────────
+  const unsectionedQuestions = useMemo(() =>
+    questions.filter(q => !q.sectionId),
+    [questions],
+  );
+
+  const questionsBySection = useMemo(() => {
+    const map: Record<string, FormQuestion[]> = {};
+    for (const q of questions) {
+      if (q.sectionId) {
+        if (!map[q.sectionId]) map[q.sectionId] = [];
+        map[q.sectionId].push(q);
+      }
+    }
+    return map;
+  }, [questions]);
+
   // ── Determine which fields to show ───────────────────────────────────
   const showPlaceholder = ['short_text', 'long_text', 'number', 'email'].includes(form.fieldType);
   const showChoices = ['dropdown', 'radio', 'checkbox'].includes(form.fieldType);
@@ -564,6 +836,310 @@ export default function ComplaintFormBuilderPage() {
 
   // ── Current phase meta ───────────────────────────────────────────────
   const currentPhase = PHASES.find(p => p.value === activeTab);
+
+  // ── Render compact question row (inside section) ─────────────────────
+  const renderCompactQuestionRow = (q: FormQuestion, index: number, siblings: FormQuestion[]) => (
+    <div
+      key={q.id}
+      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-muted/40 transition-colors group ${!q.isActive ? 'opacity-50' : ''}`}
+    >
+      {/* Reorder within section */}
+      <div className="flex flex-col gap-0.5 shrink-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-5 text-muted-foreground/40"
+          onClick={() => handleReorderInSection(siblings, index, 'up')}
+          disabled={index === 0}
+        >
+          <ChevronUp className="size-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-5 text-muted-foreground/40"
+          onClick={() => handleReorderInSection(siblings, index, 'down')}
+          disabled={index === siblings.length - 1}
+        >
+          <ChevronDown className="size-3" />
+        </Button>
+      </div>
+
+      <GripVertical className="size-3.5 text-muted-foreground/30 shrink-0" />
+
+      {/* Type icon + badge */}
+      <div className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 shrink-0 ${TYPE_BADGE_COLORS[q.fieldType] || ''}`}>
+        {getFieldIcon(q.fieldType)}
+        <span className="text-[10px] font-medium">{formatFieldType(q.fieldType)}</span>
+      </div>
+
+      {/* Label */}
+      <div className="flex items-center gap-1 min-w-0 flex-1">
+        <span className="text-sm font-medium truncate">{q.label}</span>
+        {q.required && <span className="text-red-500 dark:text-red-400 shrink-0">*</span>}
+      </div>
+
+      {/* Move to section dropdown */}
+      <Select
+        value={q.sectionId || '__none__'}
+        onValueChange={(val) => handleMoveQuestionToSection(q.id, val === '__none__' ? null : val)}
+      >
+        <SelectTrigger className="w-[130px] h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity">
+          <FolderOpen className="size-3 mr-1 shrink-0" />
+          <SelectValue placeholder="Move to..." />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__none__">No Section</SelectItem>
+          {sections.map(s => (
+            <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {/* Actions */}
+      <div className="flex items-center gap-1 shrink-0">
+        <Switch
+          checked={q.isActive}
+          onCheckedChange={() => handleToggleActive(q)}
+          className="scale-[0.75]"
+        />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => handleOpenEdit(q)}
+          title="Edit"
+        >
+          <Pencil className="size-3" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-7 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => setDeleteId(q.id)}
+          title="Delete"
+        >
+          <Trash2 className="size-3" />
+        </Button>
+      </div>
+    </div>
+  );
+
+  // ── Render sectionized view ──────────────────────────────────────────
+  const renderSectionizedView = () => {
+    if (loading || sectionLoading) {
+      return (
+        <div className="space-y-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-48 rounded-xl" />
+          ))}
+        </div>
+      );
+    }
+
+    const hasContent = questions.length > 0 || sections.length > 0;
+
+    if (!hasContent) {
+      return (
+        <Card className="glass border-0 shadow-sm">
+          <CardContent className="p-12 text-center">
+            <FolderOpen className="size-12 mx-auto text-muted-foreground/50 mb-3" />
+            <p className="text-muted-foreground">No sections or questions yet</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">Click &quot;Add Section&quot; to organize your complaint details</p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        {/* Unsectioned questions */}
+        {unsectionedQuestions.length > 0 && (
+          <div className="border border-border/50 rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 bg-muted/50 border-b border-border/50">
+              <div className="flex items-center gap-2">
+                <FolderOpen className="size-4 text-muted-foreground" />
+                <span className="text-sm font-semibold text-muted-foreground">Unsectioned Questions</span>
+                <Badge variant="secondary" className="text-xs ml-1">{unsectionedQuestions.length}</Badge>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs gap-1 text-muted-foreground hover:text-foreground"
+                onClick={() => handleOpenAdd()}
+              >
+                <Plus className="size-3" />
+                Add Question
+              </Button>
+            </div>
+            <div className="divide-y divide-border/30 p-1">
+              {unsectionedQuestions.map((q, idx) =>
+                renderCompactQuestionRow(q, idx, unsectionedQuestions)
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sections */}
+        {sections.sort((a, b) => a.sortOrder - b.sortOrder).map((section, sectionIndex) => {
+          const sectionQuestions = (questionsBySection[section.id] || []).sort(
+            (a, b) => a.sortOrder - b.sortOrder
+          );
+          const isExpanded = expandedSections.has(section.id);
+
+          return (
+            <Collapsible
+              key={section.id}
+              open={isExpanded}
+              onOpenChange={() => toggleSectionExpand(section.id)}
+            >
+              <div className={`border rounded-xl overflow-hidden transition-all ${!section.isActive ? 'opacity-60' : 'border-border/50'}`}>
+                {/* Gradient top border */}
+                <div className="h-0.5 bg-gradient-to-r from-umak-gold/60 via-umak-gold/30 to-transparent" />
+
+                {/* Section header */}
+                <div className="flex items-center gap-3 px-4 py-3 bg-card">
+                  {/* Expand toggle */}
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="icon" className="size-7 shrink-0">
+                      <ChevronRight className={`size-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                    </Button>
+                  </CollapsibleTrigger>
+
+                  {/* Section icon + title */}
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <FolderOpen className="size-4 text-umak-gold shrink-0" />
+                    <span className="text-sm font-semibold truncate">{section.title}</span>
+                    {section.description && (
+                      <span className="text-xs text-muted-foreground hidden sm:inline truncate max-w-[200px]">
+                        — {section.description}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Question count badge */}
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    {sectionQuestions.length} {sectionQuestions.length === 1 ? 'question' : 'questions'}
+                  </Badge>
+
+                  {/* Status badge */}
+                  <Badge className={`text-[10px] shrink-0 ${section.isActive ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-300 dark:border-emerald-500/40' : 'bg-gray-500/15 text-gray-500 border-gray-500/30 dark:bg-gray-500/20 dark:text-gray-400 dark:border-gray-500/40'}`}>
+                    {section.isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+
+                  {/* Section actions */}
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    {/* Reorder up */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      onClick={(e) => { e.stopPropagation(); handleReorderSection(sectionIndex, 'up'); }}
+                      disabled={sectionIndex === 0}
+                      title="Move section up"
+                    >
+                      <ChevronUp className="size-3.5" />
+                    </Button>
+                    {/* Reorder down */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      onClick={(e) => { e.stopPropagation(); handleReorderSection(sectionIndex, 'down'); }}
+                      disabled={sectionIndex === sections.length - 1}
+                      title="Move section down"
+                    >
+                      <ChevronDown className="size-3.5" />
+                    </Button>
+                    {/* Toggle active */}
+                    <Switch
+                      checked={section.isActive}
+                      onCheckedChange={() => handleToggleSectionActive(section)}
+                      className="scale-[0.8] ml-1"
+                    />
+                    {/* Edit section */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7"
+                      onClick={(e) => { e.stopPropagation(); handleOpenEditSection(section); }}
+                      title="Edit section"
+                    >
+                      <Pencil className="size-3" />
+                    </Button>
+                    {/* Delete section */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (confirm(`Delete section "${section.title}"? Questions will become unsectioned.`)) {
+                          handleDeleteSection(section.id);
+                        }
+                      }}
+                      title="Delete section"
+                    >
+                      <Trash2 className="size-3" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Section content — questions */}
+                <CollapsibleContent>
+                  <div className="border-t border-border/30">
+                    {sectionQuestions.length === 0 ? (
+                      <div className="px-4 py-6 text-center">
+                        <p className="text-xs text-muted-foreground">No questions in this section</p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-2 text-xs gap-1"
+                          onClick={() => handleOpenAdd(section.id)}
+                        >
+                          <Plus className="size-3" />
+                          Add Question
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border/20 p-1">
+                        {sectionQuestions.map((q, idx) =>
+                          renderCompactQuestionRow(q, idx, sectionQuestions)
+                        )}
+                      </div>
+                    )}
+
+                    {/* Add question button */}
+                    <div className="px-4 py-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full border border-dashed border-muted-foreground/30 rounded-lg text-xs gap-1.5 text-muted-foreground hover:text-foreground hover:border-muted-foreground/50"
+                        onClick={() => handleOpenAdd(section.id)}
+                      >
+                        <Plus className="size-3" />
+                        Add Question to &quot;{section.title}&quot;
+                      </Button>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </div>
+            </Collapsible>
+          );
+        })}
+
+        {/* Add Section button */}
+        <Button
+          variant="ghost"
+          className="w-full border border-dashed border-muted-foreground/30 rounded-xl py-6 gap-2 text-sm text-muted-foreground hover:text-foreground hover:border-umak-gold/50 hover:bg-umak-gold/5"
+          onClick={() => handleOpenAddSection()}
+        >
+          <FolderPlus className="size-4" />
+          Add Section
+        </Button>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -580,20 +1156,31 @@ export default function ComplaintFormBuilderPage() {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            onClick={handleOpenAdd}
+            onClick={() => handleOpenAdd()}
             className="bg-umak-gold hover:bg-umak-gold-hover text-umak-navy gap-2"
           >
             <Plus className="size-4" />
             Add Question
           </Button>
-          <Button
-            onClick={handleOpenAddSection}
-            variant="outline"
-            className="gap-2 border-umak-gold/50 text-umak-navy hover:bg-umak-gold/10"
-          >
-            <Plus className="size-4" />
-            Add Section
-          </Button>
+          {activeTab === 'complaint_details' ? (
+            <Button
+              onClick={() => handleOpenAddSection()}
+              variant="outline"
+              className="gap-2 border-umak-gold/50 text-umak-navy hover:bg-umak-gold/10"
+            >
+              <FolderPlus className="size-4" />
+              Add Section
+            </Button>
+          ) : (
+            <Button
+              onClick={handleOpenAddSectionHeader}
+              variant="outline"
+              className="gap-2 border-umak-gold/50 text-umak-navy hover:bg-umak-gold/10"
+            >
+              <Plus className="size-4" />
+              Add Section
+            </Button>
+          )}
         </div>
       </div>
 
@@ -615,6 +1202,9 @@ export default function ComplaintFormBuilderPage() {
                 <Skeleton key={i} className="h-16 rounded-xl" />
               ))}
             </div>
+          ) : activeTab === 'complaint_details' ? (
+            /* ── Sectionized View for Complaint Details ── */
+            renderSectionizedView()
           ) : questions.length === 0 ? (
             <Card className="glass border-0 shadow-sm">
               <CardContent className="p-12 text-center">
@@ -740,7 +1330,7 @@ export default function ComplaintFormBuilderPage() {
               ))}
             </div>
           ) : (
-            /* ── Table View for Instructions & Complaint Details ── */
+            /* ── Table View for Instructions ── */
             <Card className="glass border-0 shadow-sm">
               <CardContent className="p-0">
                 <div className="overflow-x-auto">
@@ -864,6 +1454,30 @@ export default function ComplaintFormBuilderPage() {
           </DialogHeader>
 
           <div className="grid gap-5 py-2">
+            {/* Section Assignment (complaint_details only) */}
+            {activeTab === 'complaint_details' && (
+              <div className="space-y-2">
+                <Label>Section</Label>
+                <Select
+                  value={form.sectionId}
+                  onValueChange={(val) => setForm(f => ({ ...f, sectionId: val }))}
+                >
+                  <SelectTrigger className="w-full">
+                    <div className="flex items-center gap-2">
+                      <FolderOpen className="size-3.5 text-muted-foreground" />
+                      <SelectValue placeholder="No Section" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No Section (Unsectioned)</SelectItem>
+                    {sections.map(s => (
+                      <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Field Type */}
             <div className="space-y-2">
               <Label htmlFor="fieldType">Field Type</Label>
@@ -1058,6 +1672,63 @@ export default function ComplaintFormBuilderPage() {
             >
               {saving && <Loader2 className="size-4 animate-spin" />}
               {editingQuestion ? 'Save Changes' : 'Add Question'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Section Add/Edit Dialog */}
+      <Dialog open={sectionDialogOpen} onOpenChange={setSectionDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingSection ? 'Edit Section' : 'Add Section'}
+            </DialogTitle>
+            <DialogDescription>
+              {editingSection
+                ? `Editing section "${editingSection.title}"`
+                : 'Create a new section to organize complaint detail questions'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="sectionTitle">
+                Section Title <span className="text-red-500">*</span>
+              </Label>
+              <Input
+                id="sectionTitle"
+                value={newSectionTitle}
+                onChange={(e) => setNewSectionTitle(e.target.value)}
+                placeholder="e.g. Incident Details"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sectionDesc">Description</Label>
+              <Textarea
+                id="sectionDesc"
+                value={newSectionDesc}
+                onChange={(e) => setNewSectionDesc(e.target.value)}
+                placeholder="Optional description for this section..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setSectionDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveSection}
+              disabled={!newSectionTitle.trim()}
+              className="bg-umak-gold hover:bg-umak-gold-hover text-umak-navy gap-2"
+            >
+              {editingSection ? 'Save Changes' : 'Create Section'}
             </Button>
           </DialogFooter>
         </DialogContent>

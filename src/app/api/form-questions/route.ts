@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
       allowMultiple,
       defaultValue,
       validation,
+      sectionId,
     } = body;
 
     if (!phase || !fieldType || !label) {
@@ -99,6 +100,7 @@ export async function POST(request: NextRequest) {
         allowMultiple: allowMultiple ?? false,
         defaultValue: defaultValue ?? null,
         validation: validation ?? null,
+        sectionId: sectionId ?? null,
       },
     });
 
@@ -152,7 +154,7 @@ export async function PATCH(request: NextRequest) {
     const allowedFields = [
       'phase', 'fieldType', 'label', 'helpText', 'placeholder',
       'required', 'roleTarget', 'sortOrder', 'choices', 'content',
-      'allowMultiple', 'defaultValue', 'validation', 'isActive',
+      'allowMultiple', 'defaultValue', 'validation', 'isActive', 'sectionId',
     ];
     for (const field of allowedFields) {
       if (updateFields[field] !== undefined) {
