@@ -91,3 +91,25 @@ Stage Summary:
   2. Toggle not reflecting → Fixed (isActive in allowedFields)
   3. Add Complainant/Respondent → Fixed (getPhaseAllowMultiple returns true for these phases)
 - Pushed to GitHub: commit 51a3d6a
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Fix 6 issues in iCSFD+ complaint form system
+
+Work Log:
+- **ISSUE 1 (Layout):** Changed DynamicPersonForm wrapper from `space-y-4` to `space-y-5` for more breathing room when many CMS questions exist. Changed all CardContent sections in renderStep4 from `space-y-5` to `space-y-6` for complaint details sub-sections.
+- **ISSUE 2 (Validation):** Replaced generic "Please fill in all required fields correctly." error banners in person step and complaint details step with dynamic messages: "{count} required field(s) need attention. Please check the highlighted fields above." with a bullet list of specific field errors (up to 5 items). Added red ring/border styling to DynamicField inputs when they have errors.
+- **ISSUE 3 (Add Section button):** Added `handleOpenAddSection()` function in CMS complaint form builder that pre-fills the form dialog with `fieldType: 'section_header'`, `label: 'New Section'`, `content: ''`. Added a second "Add Section" outline button next to the existing "Add Question" button. The ChoicesEditor and placeholder fields auto-hide since showChoices/showPlaceholder don't include section_header.
+- **ISSUE 4 (Hard delete):** Verified the DELETE API already uses `db.formQuestion.delete()` (actual hard delete, not soft delete). Updated the audit log remarks from "Deleted form question" to "Permanently deleted form question" for clarity.
+- **ISSUE 5 (Dynamic review step):** Completely rewrote renderStep5 to dynamically show ALL form fields instead of hardcoded well-known IDs. Complainants/respondents now iterate over ALL phase questions and display any filled field. Complaint details are now grouped visually by section_header questions if they exist, with a flexible section parser that collects fields under their nearest section header.
+- **ISSUE 6 (Email attachments):** Verified the implementation is solid - `downloadFilesAsAttachments()` handles base64 data URLs, regular URLs with 15s timeout, 25MB total limit, proper error handling, and graceful degradation. No changes needed.
+
+Stage Summary:
+- 5 files modified across 4 issues with actual code changes:
+  1. src/app/(public)/complaint/page.tsx - layout spacing, validation errors, dynamic review
+  2. src/app/(protected)/cms/complaint-form/page.tsx - Add Section button
+  3. src/app/api/form-questions/route.ts - audit log message update
+  4. src/lib/email.ts - verified, no changes needed
+- ESLint passes with zero errors
+- Pushed to GitHub: commit b8f4ebd
