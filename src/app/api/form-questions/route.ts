@@ -188,7 +188,7 @@ export async function PATCH(request: NextRequest) {
 }
 
 // ── DELETE /api/form-questions ──────────────────────────────────────────
-// Soft-delete (set isActive=false). Superadmin only.
+// Hard-delete (remove from database). Superadmin only.
 export async function DELETE(request: NextRequest) {
   try {
     const session = await requireSuperadmin();
@@ -211,9 +211,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Question not found' }, { status: 404 });
     }
 
-    const updated = await db.formQuestion.update({
+    await db.formQuestion.delete({
       where: { id },
-      data: { isActive: false },
     });
 
     await createAuditLog({
@@ -223,12 +222,11 @@ export async function DELETE(request: NextRequest) {
       actionType: 'DELETE',
       module: 'form_questions',
       recordId: id,
-      oldValue: { label: existing.label, phase: existing.phase, isActive: existing.isActive },
-      newValue: { isActive: false },
-      remarks: `Soft-deleted form question: ${existing.label} (${existing.phase})`,
+      oldValue: { label: existing.label, phase: existing.phase },
+      remarks: `Permanently deleted form question: ${existing.label} (${existing.phase})`,
     });
 
-    return NextResponse.json({ data: updated });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Failed to delete form question:', error);
     return NextResponse.json(

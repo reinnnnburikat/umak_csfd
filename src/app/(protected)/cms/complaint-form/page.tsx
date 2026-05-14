@@ -402,6 +402,18 @@ export default function ComplaintFormBuilderPage() {
     setDialogOpen(true);
   };
 
+  // ── Show Add Section dialog (pre-filled as section_header) ──────────
+  const handleOpenAddSection = () => {
+    setEditingQuestion(null);
+    setForm({
+      ...EMPTY_FORM,
+      fieldType: 'section_header',
+      label: 'New Section',
+      content: '',
+    });
+    setDialogOpen(true);
+  };
+
   // ── Show Edit dialog ─────────────────────────────────────────────────
   const handleOpenEdit = (q: FormQuestion) => {
     setEditingQuestion(q);
@@ -566,13 +578,23 @@ export default function ComplaintFormBuilderPage() {
             <p className="text-sm text-muted-foreground">Manage the questions displayed in each phase of the complaint form</p>
           </div>
         </div>
-        <Button
-          onClick={handleOpenAdd}
-          className="bg-umak-gold hover:bg-umak-gold-hover text-umak-navy gap-2"
-        >
-          <Plus className="size-4" />
-          Add Question
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handleOpenAdd}
+            className="bg-umak-gold hover:bg-umak-gold-hover text-umak-navy gap-2"
+          >
+            <Plus className="size-4" />
+            Add Question
+          </Button>
+          <Button
+            onClick={handleOpenAddSection}
+            variant="outline"
+            className="gap-2 border-umak-gold/50 text-umak-navy hover:bg-umak-gold/10"
+          >
+            <Plus className="size-4" />
+            Add Section
+          </Button>
+        </div>
       </div>
 
       {/* Tabs */}

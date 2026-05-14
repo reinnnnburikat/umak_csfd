@@ -219,7 +219,9 @@ function DynamicField({
   dynamicChoices: { label: string; value: string }[] | null;
 }) {
   const fieldId = prefix ? `${prefix}-${question.id}` : question.id;
-  const inputClass = "transition-all duration-200 focus:ring-2 focus:ring-umak-blue/20 dark:focus:ring-umak-gold/20";
+  const inputClass = error
+    ? "transition-all duration-200 focus:ring-2 focus:ring-umak-blue/20 dark:focus:ring-umak-gold/20 ring-2 ring-destructive border-destructive"
+    : "transition-all duration-200 focus:ring-2 focus:ring-umak-blue/20 dark:focus:ring-umak-gold/20";
 
   switch (question.fieldType) {
     case 'section_header':
@@ -456,7 +458,7 @@ function DynamicPersonForm({
   collegeOtherError?: string;
 }) {
   return (
-    <div className="space-y-0">
+    <div className="space-y-5">
       {questions.map((q) => {
         if (q.fieldType === 'section_header') {
           return <SectionHeader key={q.id} label={q.label} content={q.content} helpText={q.helpText} />;
@@ -990,8 +992,28 @@ export default function ComplaintPage() {
         {Object.keys(errors).length > 0 && (
           <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
             <p className="text-sm text-destructive font-medium">
-              Please fill in all required fields correctly.
+              {Object.keys(errors).length} required field(s) need attention. Please check the highlighted fields above.
             </p>
+            {Object.keys(errors).length <= 5 && (
+              <ul className="mt-2 text-xs text-destructive/80 space-y-1 list-disc list-inside">
+                {Object.entries(errors).filter(([, v]) => v && v.trim()).map(([key, msg]) => (
+                  <li key={key}>{msg}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {Object.keys(collegeOtherErrors).length > 0 && (
+          <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
+            <p className="text-sm text-destructive font-medium">
+              {Object.keys(collegeOtherErrors).length} required field(s) need attention. Please check the highlighted fields above.
+            </p>
+            <ul className="mt-2 text-xs text-destructive/80 space-y-1 list-disc list-inside">
+              {Object.values(collegeOtherErrors).map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
           </div>
         )}
 
@@ -1201,7 +1223,7 @@ export default function ComplaintPage() {
               </CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-6">
             {/* Classification Section */}
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -1287,7 +1309,7 @@ export default function ComplaintPage() {
               </CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-6">
             {/* When & Where Section */}
             <div>
               <div className="flex items-center gap-2 mb-3">
@@ -1380,7 +1402,7 @@ export default function ComplaintPage() {
               </CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="space-y-5">
+          <CardContent className="space-y-6">
             {/* Previous Reports */}
             {questions.filter(q => q.id === 'previousReports').map(q => {
               const listType = getDynamicListType(q.choices);
@@ -1436,8 +1458,15 @@ export default function ComplaintPage() {
         {Object.keys(errors).length > 0 && !errors.submit && (
           <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20">
             <p className="text-sm text-destructive font-medium">
-              Please fill in all required fields correctly.
+              {Object.keys(errors).length} required field(s) need attention. Please check the highlighted fields above.
             </p>
+            {Object.keys(errors).length <= 5 && (
+              <ul className="mt-2 text-xs text-destructive/80 space-y-1 list-disc list-inside">
+                {Object.entries(errors).filter(([, v]) => v && v.trim()).map(([key, msg]) => (
+                  <li key={key}>{msg}</li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
 
@@ -1469,7 +1498,120 @@ export default function ComplaintPage() {
   // ── Step 5: Summary ──
   const renderStep5 = () => {
     const answers = formData.dynamicAnswers;
-    const detailQuestions = getPhaseQuestions('complaint_details').filter(q => q.fieldType !== 'section_header');
+    const detailQuestions = getPhaseQuestions('complaint_details');
+    const complainantQuestions = getPhaseQuestions('complainant').filter(q => q.fieldType !== 'section_header');
+    const respondentQuestions = getPhaseQuestions('respondent').filter(q => q.fieldType !== 'section_header');
+
+    // Helper to render dynamic person fields
+    const renderPersonFields = (person: PersonInfo, questions: FormQuestion[]) => {
+      const filledFields = questions.filter(q => {
+        const val = person[q.id];
+        return val && val.trim() !== '';
+      });
+      if (filledFields.length === 0) return null;
+
+      // Group: name fields first, then remaining
+      const nameIds = new Set(['givenName', 'surname', 'middleName', 'extensionName']);
+      const nameFields = filledFields.filter(q => nameIds.has(q.id));
+      const otherFields = filledFields.filter(q => !nameIds.has(q.id));
+
+      return (
+        <div className="text-sm space-y-1.5">
+          {/* Name line */}
+          {nameFields.length > 0 && (
+            <p className="font-semibold text-foreground">
+              {person.givenName || ''} {person.middleName ? person.middleName + ' ' : ''}{person.surname || ''}
+              {person.extensionName ? ` ${person.extensionName}` : ''}
+            </p>
+          )}
+          {/* Other fields in flex rows */}
+          {otherFields.length > 0 && (
+            <>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                {otherFields.slice(0, 4).map(q => (
+                  <span key={q.id} className="flex items-center gap-1">
+                    {q.id === 'email' && <Mail className="size-3" />}
+                    {q.id === 'sex' && <User className="size-3" />}
+                    {person[q.id]}
+                  </span>
+                ))}
+              </div>
+              {otherFields.length > 4 && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                  {otherFields.slice(4).map(q => (
+                    <span key={q.id}>{person[q.id]}</span>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      );
+    };
+
+    // Helper to render complaint details grouped by sections
+    const renderDetailSections = () => {
+      const sections: { header: FormQuestion | null; fields: FormQuestion[] }[] = [];
+      let currentHeader: FormQuestion | null = null;
+      let currentFields: FormQuestion[] = [];
+
+      for (const q of detailQuestions) {
+        if (q.fieldType === 'section_header') {
+          if (currentFields.length > 0 || currentHeader) {
+            sections.push({ header: currentHeader, fields: currentFields });
+          }
+          currentHeader = q;
+          currentFields = [];
+        } else if (q.fieldType === 'file_upload') {
+          // skip file upload in review
+          continue;
+        } else {
+          currentFields.push(q);
+        }
+      }
+      if (currentFields.length > 0 || currentHeader) {
+        sections.push({ header: currentHeader, fields: currentFields });
+      }
+
+      return sections.map((section, sIdx) => (
+        <div key={sIdx}>
+          {section.header && (
+            <div className="flex items-center gap-2 mb-3">
+              <div className="size-1.5 rounded-full bg-umak-blue dark:bg-umak-gold" />
+              <h4 className="text-xs font-bold uppercase tracking-wider text-umak-blue/70 dark:text-umak-gold/70">{section.header.label}</h4>
+              <div className="flex-1 h-px bg-border/50" />
+            </div>
+          )}
+          <div className={section.fields.length <= 2 ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : 'space-y-3'}>
+            {section.fields.map(q => {
+              const val = answers[q.id];
+              // Special handling for violation type
+              if (q.id === 'violationType') {
+                if (!val || (val !== '__other__' && !violationTypeOtherRef.current && !val.trim())) return null;
+                return (
+                  <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30 sm:col-span-2">
+                    <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
+                    <p className="text-sm font-medium">{val === '__other__' ? violationTypeOtherRef.current : val}</p>
+                  </div>
+                );
+              }
+              if (!val || val.trim() === '') return null;
+              // Date formatting
+              let displayVal = val;
+              if (q.fieldType === 'date') {
+                try { displayVal = format(new Date(val), 'MMMM d, yyyy'); } catch { /* keep raw */ }
+              }
+              return (
+                <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30">
+                  <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
+                  <p className="text-sm font-medium whitespace-pre-wrap">{displayVal}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ));
+    };
 
     return (
       <div className="animate-fade-in space-y-6">
@@ -1496,21 +1638,7 @@ export default function ComplaintPage() {
                   <Badge variant={idx === 0 ? 'default' : 'secondary'} className="shrink-0 mt-0.5">
                     {idx === 0 ? 'Main' : `Co-${idx}`}
                   </Badge>
-                  <div className="text-sm space-y-1.5">
-                    <p className="font-semibold text-foreground">
-                      {person.givenName || ''} {person.middleName ? person.middleName + ' ' : ''}{person.surname || ''}
-                      {person.extensionName ? ` ${person.extensionName}` : ''}
-                    </p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                      {person.sex && <span className="flex items-center gap-1"><User className="size-3" />{person.sex}</span>}
-                      {person.studentNumber && <span>{person.studentNumber}</span>}
-                      {person.collegeInstitute && <span>{person.collegeInstitute}</span>}
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                      {person.yearLevel && <span>{person.yearLevel}</span>}
-                      {person.email && <span className="flex items-center gap-1"><Mail className="size-3" />{person.email}</span>}
-                    </div>
-                  </div>
+                  {renderPersonFields(person, complainantQuestions)}
                 </div>
               </div>
             ))}
@@ -1540,21 +1668,7 @@ export default function ComplaintPage() {
                   <Badge variant={idx === 0 ? 'default' : 'secondary'} className="shrink-0 mt-0.5">
                     {idx === 0 ? 'Main' : `Co-${idx}`}
                   </Badge>
-                  <div className="text-sm space-y-1.5">
-                    <p className="font-semibold text-foreground">
-                      {person.givenName || ''} {person.middleName ? person.middleName + ' ' : ''}{person.surname || ''}
-                      {person.extensionName ? ` ${person.extensionName}` : ''}
-                    </p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                      {person.sex && <span className="flex items-center gap-1"><User className="size-3" />{person.sex}</span>}
-                      {person.studentNumber && <span>{person.studentNumber}</span>}
-                      {person.collegeInstitute && <span>{person.collegeInstitute}</span>}
-                    </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-                      {person.yearLevel && <span>{person.yearLevel}</span>}
-                      {person.email && <span className="flex items-center gap-1"><Mail className="size-3" />{person.email}</span>}
-                    </div>
-                  </div>
+                  {renderPersonFields(person, respondentQuestions)}
                 </div>
               </div>
             ))}
@@ -1574,72 +1688,8 @@ export default function ComplaintPage() {
               </CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {detailQuestions.filter(q => q.id === 'subject' || q.id === 'complaintCategory').map(q => (
-                <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30">
-                  <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
-                  <p className="text-sm font-medium">{answers[q.id] || '—'}</p>
-                </div>
-              ))}
-              {(answers['violationType'] || answers['violationType'] === '__other__') && (
-                <div className="p-3 rounded-lg bg-muted/30 border border-border/30 sm:col-span-2">
-                  <p className="text-xs text-muted-foreground mb-1">Violation Type</p>
-                  <p className="text-sm font-medium">{answers['violationType'] === '__other__' ? violationTypeOtherRef.current : answers['violationType']}</p>
-                </div>
-              )}
-            </div>
-            {detailQuestions.filter(q => q.id === 'description' || q.id === 'desiredOutcome').map(q => (
-              <div key={q.id} className="p-3 rounded-lg bg-muted/30 border border-border/30">
-                <p className="text-xs text-muted-foreground mb-1">{q.label}</p>
-                <p className="text-sm whitespace-pre-wrap">{answers[q.id] || '—'}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Timeline Summary */}
-        <Card className="border-border/50 overflow-hidden">
-          <div className="h-1.5 bg-gradient-to-r from-amber-500 to-amber-400" />
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="size-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                <CalendarDays className="size-5 text-amber-600 dark:text-amber-400" />
-              </div>
-              <CardTitle className="text-lg font-semibold text-umak-blue dark:text-umak-gold">
-                Timeline &amp; Context
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {answers['dateOfIncident'] && (
-                <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
-                  <p className="text-xs text-muted-foreground mb-1">Date of Incident</p>
-                  <p className="text-sm font-medium">
-                    {format(new Date(answers['dateOfIncident']), 'MMMM d, yyyy')}
-                  </p>
-                </div>
-              )}
-              {answers['location'] && (
-                <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
-                  <p className="text-xs text-muted-foreground mb-1">Location</p>
-                  <p className="text-sm font-medium">{answers['location']}</p>
-                </div>
-              )}
-              {answers['isOngoing'] && (
-                <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
-                  <p className="text-xs text-muted-foreground mb-1">Ongoing</p>
-                  <p className="text-sm font-medium">{answers['isOngoing']}{answers['isOngoing'] === 'Yes' && answers['howOften'] ? ` (${answers['howOften']})` : ''}</p>
-                </div>
-              )}
-              {answers['witnesses'] && (
-                <div className="p-3 rounded-lg bg-muted/30 border border-border/30">
-                  <p className="text-xs text-muted-foreground mb-1">Witnesses</p>
-                  <p className="text-sm">{answers['witnesses']}</p>
-                </div>
-              )}
-            </div>
+          <CardContent className="space-y-5">
+            {renderDetailSections()}
           </CardContent>
         </Card>
 

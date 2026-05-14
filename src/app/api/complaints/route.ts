@@ -181,9 +181,9 @@ export async function POST(request: NextRequest) {
     }
 
     const main = body.complainants[0];
-    if (!main.givenName || !main.surname || !main.sex || !main.studentNumber || !main.collegeInstitute || !main.email || !main.yearLevel) {
+    if (!main.givenName || !main.surname) {
       return NextResponse.json(
-        { error: 'Main complainant fields are required.' },
+        { error: 'Complainant name (given name and surname) is required.' },
         { status: 400 }
       );
     }
