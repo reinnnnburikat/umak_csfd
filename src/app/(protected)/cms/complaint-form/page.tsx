@@ -211,7 +211,16 @@ function renderFieldPreview(q: FormQuestion) {
         </div>
       );
     case 'dropdown': {
-      const choices = q.choices ? JSON.parse(q.choices) : ['Option 1', 'Option 2', 'Option 3'];
+      let choices: string[] = ['Option 1', 'Option 2', 'Option 3'];
+      try {
+        if (q.choices) {
+          const parsed = JSON.parse(q.choices);
+          if (Array.isArray(parsed)) choices = parsed;
+          else if (typeof parsed === 'string') choices = [parsed];
+        }
+      } catch {
+        choices = q.choices ? [q.choices] : choices;
+      }
       return (
         <div className={`${baseClass} flex items-center justify-between`}>
           <span className="text-muted-foreground/50 italic">{choices[0] || 'Select...'}</span>
@@ -220,7 +229,16 @@ function renderFieldPreview(q: FormQuestion) {
       );
     }
     case 'radio': {
-      const choices = q.choices ? JSON.parse(q.choices) : ['Option A', 'Option B', 'Option C'];
+      let choices: string[] = ['Option A', 'Option B', 'Option C'];
+      try {
+        if (q.choices) {
+          const parsed = JSON.parse(q.choices);
+          if (Array.isArray(parsed)) choices = parsed;
+          else if (typeof parsed === 'string') choices = [parsed];
+        }
+      } catch {
+        choices = q.choices ? [q.choices] : choices;
+      }
       return (
         <div className="space-y-2 px-1 py-1">
           {choices.slice(0, 3).map((choice: string, idx: number) => (
@@ -236,7 +254,16 @@ function renderFieldPreview(q: FormQuestion) {
       );
     }
     case 'checkbox': {
-      const choices = q.choices ? JSON.parse(q.choices) : ['Option A', 'Option B', 'Option C'];
+      let choices: string[] = ['Option A', 'Option B', 'Option C'];
+      try {
+        if (q.choices) {
+          const parsed = JSON.parse(q.choices);
+          if (Array.isArray(parsed)) choices = parsed;
+          else if (typeof parsed === 'string') choices = [parsed];
+        }
+      } catch {
+        choices = q.choices ? [q.choices] : choices;
+      }
       return (
         <div className="space-y-2 px-1 py-1">
           {choices.slice(0, 3).map((choice: string, idx: number) => (

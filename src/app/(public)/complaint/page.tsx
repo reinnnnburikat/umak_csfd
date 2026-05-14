@@ -580,8 +580,9 @@ export default function ComplaintPage() {
     return formConfig.phases[phase] || [];
   }, [formConfig]);
 
-  // Check if a phase allows multiple persons
+  // Check if a phase allows multiple persons (always true for complainant/respondent)
   const getPhaseAllowMultiple = useCallback((phase: string): boolean => {
+    if (phase === 'complainant' || phase === 'respondent') return true;
     const questions = getPhaseQuestions(phase);
     return questions.some(q => q.allowMultiple);
   }, [getPhaseQuestions]);

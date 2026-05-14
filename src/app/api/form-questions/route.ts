@@ -152,7 +152,7 @@ export async function PATCH(request: NextRequest) {
     const allowedFields = [
       'phase', 'fieldType', 'label', 'helpText', 'placeholder',
       'required', 'roleTarget', 'sortOrder', 'choices', 'content',
-      'allowMultiple', 'defaultValue', 'validation',
+      'allowMultiple', 'defaultValue', 'validation', 'isActive',
     ];
     for (const field of allowedFields) {
       if (updateFields[field] !== undefined) {
