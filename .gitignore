@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# database (local SQLite for sandbox only — production uses Supabase PostgreSQL)
+/db/
+*.db
+
 
 # typescript
 *.tsbuildinfo
