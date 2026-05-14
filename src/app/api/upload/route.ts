@@ -5,6 +5,7 @@ import crypto from 'crypto';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Allow up to 60s for large file uploads
 
 // Maximum file size: 10 MB
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -117,8 +118,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url }, { status: 201 });
   } catch (error) {
     console.error('Upload error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to upload file. Please try again.' },
+      { error: `Failed to upload file: ${message}` },
       { status: 500 }
     );
   }

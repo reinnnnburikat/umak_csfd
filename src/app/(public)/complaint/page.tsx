@@ -490,7 +490,7 @@ function DynamicPersonForm({
               dynamicChoices={dynamicChoices}
             />
             {/* College/Institute "Other" conditional */}
-            {q.id === 'collegeInstitute' && val === 'Other' && (
+            {(q.id === 'collegeInstitute' || q.id === 'resp_collegeInstitute') && val === 'Other' && (
               <div className="space-y-2 animate-fade-in mt-2">
                 <Label htmlFor={`${prefix}-collegeInstituteOther-${index}`} className="text-xs font-medium">
                   Please specify your College/Institute <span className="text-destructive">*</span>
@@ -689,6 +689,14 @@ export default function ComplaintPage() {
     router.push('/');
   }, [router]);
 
+  // Helper: strip resp_ prefix from a question ID to get the canonical field name
+  const canonicalId = (qId: string) => qId.replace(/^resp_/, '');
+
+  // Helper: extract field value from a person record (handles both prefixed and non-prefixed keys)
+  const getPersonField = (person: PersonInfo, qId: string) => {
+    return person[qId] || person[canonicalId(qId)] || '';
+  };
+
   // Validate a person phase
   const validatePersonPhase = useCallback((persons: PersonInfo[], questions: FormQuestion[], prefix: string): boolean => {
     const fieldErrors: Record<string, string> = {};
@@ -702,16 +710,18 @@ export default function ComplaintPage() {
         if (!val || val.trim() === '') {
           fieldErrors[`${i}.${q.id}`] = `${q.label} is required`;
         }
-        // Special validations
-        if (q.id === 'studentNumber' && val && !STUDENT_NUMBER_REGEX.test(val)) {
-          fieldErrors[`${i}.studentNumber`] = 'Must be a letter followed by numbers (e.g., K12345678)';
+        // Special validations (check both prefixed and non-prefixed IDs)
+        const cId = canonicalId(q.id);
+        if (cId === 'studentNumber' && val && !STUDENT_NUMBER_REGEX.test(val)) {
+          fieldErrors[`${i}.${q.id}`] = 'Must be a letter followed by numbers (e.g., K12345678)';
         }
-        if (q.id === 'email' && val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
-          fieldErrors[`${i}.email`] = 'Invalid email address';
+        if (cId === 'email' && val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+          fieldErrors[`${i}.${q.id}`] = 'Invalid email address';
         }
       }
-      // College/Institute "Other" validation
-      if (person.collegeInstitute === 'Other' && !collegeInstituteOtherMapRef.current[`${prefix}-${i}`]?.trim()) {
+      // College/Institute "Other" validation (check both prefixed and non-prefixed)
+      const ciVal = person.collegeInstitute || person.resp_collegeInstitute;
+      if (ciVal === 'Other' && !collegeInstituteOtherMapRef.current[`${prefix}-${i}`]?.trim()) {
         otherErrors[`${prefix}-${i}`] = 'Please specify your college/institute';
       }
     }
@@ -839,19 +849,22 @@ export default function ComplaintPage() {
 
       // Process respondents
       const processedRespondents = formData.respondents.map((p, i) => {
-        const ciOther = p.collegeInstitute === 'Other' && collegeInstituteOtherMapRef.current[`respondent-${i}`]?.trim()
+        // Respondent question IDs may have resp_ prefix (e.g., resp_givenName)
+        // Normalize by checking both prefixed and non-prefixed keys
+        const ciKey = p.collegeInstitute || p.resp_collegeInstitute;
+        const ciOther = ciKey === 'Other' && collegeInstituteOtherMapRef.current[`respondent-${i}`]?.trim()
           ? collegeInstituteOtherMapRef.current[`respondent-${i}`].trim()
-          : (p.collegeInstitute || '');
+          : (ciKey || '');
         return {
-          givenName: toTitleCase(p.givenName || ''),
-          surname: toTitleCase(p.surname || ''),
-          middleName: toTitleCase(p.middleName || ''),
-          extensionName: toTitleCase(p.extensionName || ''),
-          sex: p.sex || '',
-          studentNumber: p.studentNumber || '',
+          givenName: toTitleCase(p.givenName || p.resp_givenName || ''),
+          surname: toTitleCase(p.surname || p.resp_surname || ''),
+          middleName: toTitleCase(p.middleName || p.resp_middleName || ''),
+          extensionName: toTitleCase(p.extensionName || p.resp_extensionName || ''),
+          sex: p.sex || p.resp_sex || '',
+          studentNumber: p.studentNumber || p.resp_studentNumber || '',
           collegeInstitute: ciOther,
-          email: p.email || '',
-          yearLevel: p.yearLevel || '',
+          email: p.email || p.resp_email || '',
+          yearLevel: p.yearLevel || p.resp_yearLevel || '',
         };
       });
 
@@ -1518,36 +1531,48 @@ export default function ComplaintPage() {
     // Helper to render dynamic person fields with proper labels
     const renderPersonFields = (person: PersonInfo, questions: FormQuestion[]) => {
       const filledFields = questions.filter(q => {
-        const val = person[q.id];
+        const val = getPersonField(person, q.id);
         return val && val.trim() !== '';
       });
       if (filledFields.length === 0) return null;
 
-      // Group: name fields first, then remaining
-      const nameIds = new Set(['givenName', 'surname', 'middleName', 'extensionName']);
-      const nameFields = filledFields.filter(q => nameIds.has(q.id));
-      const otherFields = filledFields.filter(q => !nameIds.has(q.id));
+      // Group: name fields first, then remaining (check both prefixed and non-prefixed)
+      const isNameField = (qId: string) => {
+        const cId = canonicalId(qId);
+        return ['givenName', 'surname', 'middleName', 'extensionName'].includes(cId);
+      };
+      const nameFields = filledFields.filter(q => isNameField(q.id));
+      const otherFields = filledFields.filter(q => !isNameField(q.id));
+
+      // Build name line using canonical field names
+      const gName = getPersonField(person, 'givenName') || getPersonField(person, 'resp_givenName');
+      const mName = getPersonField(person, 'middleName') || getPersonField(person, 'resp_middleName');
+      const sName = getPersonField(person, 'surname') || getPersonField(person, 'resp_surname');
+      const eName = getPersonField(person, 'extensionName') || getPersonField(person, 'resp_extensionName');
 
       return (
         <div className="text-sm space-y-1.5">
           {/* Name line */}
-          {nameFields.length > 0 && (
+          {(gName || sName) && (
             <p className="font-semibold text-foreground">
-              {person.givenName || ''} {person.middleName ? person.middleName + ' ' : ''}{person.surname || ''}
-              {person.extensionName ? ` ${person.extensionName}` : ''}
+              {gName || ''} {mName ? mName + ' ' : ''}{sName || ''}
+              {eName ? ` ${eName}` : ''}
             </p>
           )}
           {/* Other fields with labels */}
           {otherFields.length > 0 && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
-              {otherFields.map(q => (
-                <span key={q.id} className="flex items-center gap-1">
-                  <span className="text-xs font-medium text-muted-foreground/70">{q.label}:</span>
-                  {q.id === 'email' && <Mail className="size-3 shrink-0" />}
-                  {q.id === 'sex' && <User className="size-3 shrink-0" />}
-                  <span>{person[q.id]}</span>
-                </span>
-              ))}
+              {otherFields.map(q => {
+                const cId = canonicalId(q.id);
+                return (
+                  <span key={q.id} className="flex items-center gap-1">
+                    <span className="text-xs font-medium text-muted-foreground/70">{q.label}:</span>
+                    {cId === 'email' && <Mail className="size-3 shrink-0" />}
+                    {cId === 'sex' && <User className="size-3 shrink-0" />}
+                    <span>{getPersonField(person, q.id)}</span>
+                  </span>
+                );
+              })}
             </div>
           )}
         </div>

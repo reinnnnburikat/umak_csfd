@@ -288,3 +288,40 @@ Stage Summary:
   2. `src/app/api/upload/route.ts` — data URL storage for Vercel compatibility
 - ESLint passes with zero errors
 - Pushed to GitHub: commit `32de36f`
+
+---
+Task ID: 1
+Agent: Main
+Task: Fix Violation Type Dropdown and Upload Error in Public Complaint Form
+
+Work Log:
+- Investigated the root cause of both issues
+- Found Prisma schema mismatch: schema declared `postgresql` but .env had SQLite URL (`file:/home/z/my-project/db/custom.db`)
+- Fixed prisma/schema.prisma: changed provider from `postgresql` to `sqlite`, removed `directUrl` line
+- Ran `prisma db push` to sync schema and create missing tables (FormSection, FormQuestion were missing)
+- Updated prisma/seed.ts to include default complaint form structure:
+  - Instructions phase with filing guidelines
+  - Complainant phase: Personal Info + Academic Information sections
+  - Respondent phase: Personal Info + Academic Information sections
+  - Complaint Details phase: Classification, Incident Information, Narrative, Additional Information, Supporting Evidence sections
+  - Service toggles for all system services
+- Ran seed script to populate form questions and service toggles
+- Fixed respondent field ID mismatch in complaint form:
+  - Added `canonicalId()` and `getPersonField()` helpers for prefix-aware field access
+  - Fixed `validatePersonPhase()` to handle both `resp_*` prefixed and non-prefixed IDs
+  - Fixed `handleSubmit()` respondent processing to check both prefixed and non-prefixed keys
+  - Fixed `renderPersonFields()` in Review step for proper respondent data display
+  - Fixed College/Institute "Other" conditional for respondent phase
+- Verified ViolationTypeDropdown component already implements user's request:
+  - Fetches from ManagedList via /api/lists (violation_minor, violation_major, violation_other)
+  - Groups violations categorically (MINOR, MAJOR, OTHER VIOLATIONS)
+  - Has "Other, please specify" option with text input field
+- Improved upload API error handling with specific error messages
+- Added maxDuration=60 to upload route for large file uploads
+- Verified all APIs work: lists API (19 minor violations), config API (4 phases with questions), upload API (201 success)
+
+Stage Summary:
+- Root cause of BOTH issues was Prisma schema mismatch preventing server from functioning
+- Violation Type dropdown: Already implemented via ViolationTypeDropdown component pulling from ManagedList; form just had no data
+- Upload error: Server couldn't process requests due to database schema crash; upload API itself was correct
+- Key files modified: prisma/schema.prisma, prisma/seed.ts, src/app/(public)/complaint/page.tsx, src/app/api/upload/route.ts
