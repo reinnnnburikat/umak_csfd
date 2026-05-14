@@ -222,3 +222,37 @@ Stage Summary:
   5. Section headers act as drop targets (using useDroppable) — highlighted with gold ring when a question is dragged over them
   6. DragOverlay shows a floating card of the dragged question during drag
   7. Original item becomes semi-transparent during drag (opacity: 0.3)
+
+---
+Task ID: 9
+Agent: Main Agent
+Task: Fix upload error - create missing /api/upload route and audit all upload functionality
+
+Work Log:
+- Investigated upload error: found that `/api/upload` route was COMPLETELY MISSING from the project
+- All file uploads across the system were failing with 404 (7 components depend on this endpoint)
+- Components affected: FileUpload (shared), announcements compose-modal, profile page, certificate CMS page
+- Created `/api/upload/route.ts` with POST (save file) and DELETE (remove file) handlers
+- Created `public/uploads/` directory for file storage
+- Upload route features: 10MB limit, extension validation (12 types), MIME type validation, unique filenames (timestamp+random), directory traversal prevention, idempotent DELETE
+- Dispatched 4 parallel sub-agents to audit the entire system for functionality issues
+- Fixed .svg MIME type missing from serve-file API and getFileType() utility
+- Fixed FileUpload.removeFile() to call DELETE /api/upload and prevent orphaned files on disk
+- Fixed announcement compose-modal handleRemoveFile to clean up files from disk
+- Fixed certificate page handleFileUpload to clean up orphaned files when save fails
+- Fixed child-admission progress bar calculation (was starting at 20% instead of 0%)
+- Fixed respondent card title color copy-paste bug (was same blue/gold as complainant, now purple)
+
+Stage Summary:
+- **ROOT CAUSE:** The `/api/upload` route was never created — all file uploads were 404
+- 8 files modified:
+  1. `src/app/api/upload/route.ts` — NEW: upload API (POST/DELETE)
+  2. `src/app/api/serve-file/route.ts` — added .svg MIME type
+  3. `src/lib/file-url.ts` — added .svg to getFileType() regex
+  4. `src/components/shared/file-upload.tsx` — removeFile now deletes from disk
+  5. `src/components/announcements/compose-modal.tsx` — handleRemoveFile cleans up disk
+  6. `src/app/(protected)/cms/certificate/page.tsx` — orphan cleanup on save failure
+  7. `src/app/(public)/services/child-admission/page.tsx` — progress bar fix
+  8. `src/app/(public)/complaint/page.tsx` — respondent card title color fix
+- ESLint passes with zero errors
+- Pushed to GitHub: commit `23e0c30`
