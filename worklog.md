@@ -256,3 +256,35 @@ Stage Summary:
   8. `src/app/(public)/complaint/page.tsx` — respondent card title color fix
 - ESLint passes with zero errors
 - Pushed to GitHub: commit `23e0c30`
+
+---
+Task ID: 10
+Agent: Main Agent
+Task: Fix violation type dropdown empty + upload error on Vercel
+
+Work Log:
+- Investigated violation type dropdown showing no choices
+- Root cause: renderStep4 checked `q.id === 'violationType'` but actual question IDs are CUIDs (e.g., `cmp4nxluu000nkf9ebefonncq`)
+- The ViolationTypeDropdown never rendered; the question fell through to regular dropdown rendering which had no choices
+- Also found that handleSubmit used `extractField('violationType')` which looked for `answers['violationType']` but answers are stored under CUID keys
+- Same issue affected: howOften conditional check, description min-length validation, subject/category/location extraction in submit payload
+- Fix: Added `findQuestionByLabel()` helper that finds questions by case-insensitive label matching
+- Added `getField()` helper in submit handler for dynamic field extraction by label
+- Changed all hardcoded ID checks to label-based matching:
+  - Violation type dropdown: `q.label.includes('violation') && q.label.includes('type')`
+  - howOften conditional: `q.label.toLowerCase().includes('how often')`
+  - Description validation: `q.label.toLowerCase().includes('description')`
+  - Submit payload: `getField('subject')`, `getField('date', 'incident')`, etc.
+- Investigated persistent upload error "Failed to upload file. Please try again."
+- Root cause: Upload route used `writeFile()` to save to `public/uploads/` but Vercel has read-only filesystem
+- Fix: Changed upload route to return data URLs (base64) as primary storage format
+- Data URLs work on ALL hosting platforms (Vercel, Netlify, local dev, self-hosted)
+- Disk write is now best-effort (non-blocking) for local dev convenience only
+- DELETE handler gracefully handles data URLs (returns success immediately)
+
+Stage Summary:
+- 2 files modified:
+  1. `src/app/(public)/complaint/page.tsx` — label-based question matching throughout
+  2. `src/app/api/upload/route.ts` — data URL storage for Vercel compatibility
+- ESLint passes with zero errors
+- Pushed to GitHub: commit `32de36f`
