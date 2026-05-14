@@ -374,3 +374,29 @@ Stage Summary:
 - Section reorders are atomic (single transaction)
 - All saves are subtle - no loading spinner on individual edits
 - Files modified: 6 files, 139 insertions, 41 deletions
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix complaint form CMS → public form data flow, DnD persistence, active/deactivated toggle
+
+Work Log:
+- Diagnosed Supabase data: found 7 active questions pointing to 2 inactive sections (Contact Information, Other Information for complainant)
+- Root cause 1: Public config API returned active questions in inactive sections (orphaned data)
+- Root cause 2: DynamicPersonForm rendered all questions flat, ignoring FormSection grouping
+- Root cause 3: DnD handleDragEnd success path did not refresh from server, causing stale state
+- Root cause 4: Section deactivation (isActive=false) did not cascade to child questions
+
+Fixes applied:
+- config API: fetches active sections first, builds activeSectionIds set, filters out questions with inactive sectionId
+- DynamicPersonForm: now accepts sections prop, renders questions grouped by section with section headers, grid layout, unsectioned fallback
+- renderPersonStep: passes phaseSections to DynamicPersonForm for both main and co-persons
+- DnD handleDragEnd: added fetchQuestions(false) after successful reorder API call
+- handleReorderInSection (button): added fetchQuestions(false) after successful reorder
+- form-sections PATCH: when deactivating a section, also deactivates all child questions via updateMany
+- Fixed 7 orphaned questions in Supabase (set isActive=false)
+
+Stage Summary:
+- Public form now properly renders sections for complainant, respondent, and complaint_details phases
+- Deactivating a section in CMS now also hides its questions on the public form
+- DnD reorders persist correctly because state is refreshed from server after success
+- All changes pass lint, pushed to GitHub
