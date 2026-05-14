@@ -215,8 +215,15 @@ function renderFieldPreview(q: FormQuestion) {
       try {
         if (q.choices) {
           const parsed = JSON.parse(q.choices);
-          if (Array.isArray(parsed)) choices = parsed;
-          else if (typeof parsed === 'string') choices = [parsed];
+          if (Array.isArray(parsed)) {
+            choices = parsed.map((c: unknown) =>
+              typeof c === 'object' && c !== null && 'label' in c
+                ? String((c as { label: unknown }).label)
+                : String(c)
+            );
+          } else if (typeof parsed === 'string') {
+            choices = [parsed];
+          }
         }
       } catch {
         choices = q.choices ? [q.choices] : choices;
@@ -233,15 +240,22 @@ function renderFieldPreview(q: FormQuestion) {
       try {
         if (q.choices) {
           const parsed = JSON.parse(q.choices);
-          if (Array.isArray(parsed)) choices = parsed;
-          else if (typeof parsed === 'string') choices = [parsed];
+          if (Array.isArray(parsed)) {
+            choices = parsed.map((c: unknown) =>
+              typeof c === 'object' && c !== null && 'label' in c
+                ? String((c as { label: unknown }).label)
+                : String(c)
+            );
+          } else if (typeof parsed === 'string') {
+            choices = [parsed];
+          }
         }
       } catch {
         choices = q.choices ? [q.choices] : choices;
       }
       return (
         <div className="space-y-2 px-1 py-1">
-          {choices.slice(0, 3).map((choice: string, idx: number) => (
+          {choices.slice(0, 3).map((choice, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <div className="size-4 rounded-full border border-muted-foreground/40" />
               <span className="text-sm text-muted-foreground/60">{choice}</span>
@@ -258,15 +272,22 @@ function renderFieldPreview(q: FormQuestion) {
       try {
         if (q.choices) {
           const parsed = JSON.parse(q.choices);
-          if (Array.isArray(parsed)) choices = parsed;
-          else if (typeof parsed === 'string') choices = [parsed];
+          if (Array.isArray(parsed)) {
+            choices = parsed.map((c: unknown) =>
+              typeof c === 'object' && c !== null && 'label' in c
+                ? String((c as { label: unknown }).label)
+                : String(c)
+            );
+          } else if (typeof parsed === 'string') {
+            choices = [parsed];
+          }
         }
       } catch {
         choices = q.choices ? [q.choices] : choices;
       }
       return (
         <div className="space-y-2 px-1 py-1">
-          {choices.slice(0, 3).map((choice: string, idx: number) => (
+          {choices.slice(0, 3).map((choice, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <div className="size-4 rounded border border-muted-foreground/40" />
               <span className="text-sm text-muted-foreground/60">{choice}</span>
