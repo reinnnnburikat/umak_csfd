@@ -9,28 +9,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // ── Counts by request type ──
-    const [gmcCount, uerCount, cdcCount, cacCount, complaintCount] = await Promise.all([
-      db.serviceRequest.count({ where: { requestType: 'GMC' } }),
-      db.serviceRequest.count({ where: { requestType: 'UER' } }),
-      db.serviceRequest.count({ where: { requestType: 'CDC' } }),
-      db.serviceRequest.count({ where: { requestType: 'CAC' } }),
-      db.complaint.count(),
-    ]);
-
-    // ── Counts by status ──
-    const [submittedCount, forReviewCount, forIssuanceCount, issuedCount, holdCount, rejectedCount] = await Promise.all([
-      db.serviceRequest.count({ where: { status: { in: ['Submitted', 'New'] } } }),
-      db.serviceRequest.count({ where: { status: { in: ['For Review', 'Processing'] } } }),
-      db.serviceRequest.count({ where: { status: 'For Issuance' } }),
-      db.serviceRequest.count({ where: { status: { in: ['Issued', 'Released'] } } }),
-      db.serviceRequest.count({ where: { status: 'Hold' } }),
-      db.serviceRequest.count({ where: { status: 'Rejected' } }),
-    ]);
-
-    const totalRequests = await db.serviceRequest.count();
-
-    // ── Time boundaries ──
+    // ── Time boundaries (synchronous — no I/O) ──────────────────────────
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date();
@@ -42,208 +21,255 @@ export async function GET() {
     const monthEnd = new Date();
     monthEnd.setHours(23, 59, 59, 999);
 
-    // ── Real-time Counters ──
-    const [pendingRequests, todayNewRequests, activeComplaints, disciplinaryThisMonth, forIssuancePending, onHoldRequests, issuedToday] = await Promise.all([
-      // Pending = Submitted + For Review
-      db.serviceRequest.count({ where: { status: { in: ['Submitted', 'For Review', 'New', 'Processing'] } } }),
-      // Today's new
-      db.serviceRequest.count({ where: { createdAt: { gte: todayStart, lte: todayEnd } } }),
-      // Active complaints
-      db.complaint.count({ where: { caseStatus: { in: ['Pending', 'Under Review'] } } }),
-      // Disciplinary this month
-      db.disciplinaryCase.count({ where: { createdAt: { gte: monthStart, lte: monthEnd } } }),
-      // For Issuance (waiting to be issued)
-      db.serviceRequest.count({ where: { status: 'For Issuance' } }),
-      // On Hold
-      db.serviceRequest.count({ where: { status: 'Hold' } }),
-      // Issued today
-      db.serviceRequest.count({ where: { status: { in: ['Issued', 'Released'] }, issuedAt: { gte: todayStart, lte: todayEnd } } }),
-    ]);
-
-    // ── Service Request Trends (last 6 months) ──
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const trendData: Array<{
-      month: string;
-      GMC: number;
-      UER: number;
-      CDC: number;
-      CAC: number;
-      total: number;
-    }> = [];
-
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const mStart = new Date(d.getFullYear(), d.getMonth(), 1);
-      const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-
-      const [gmc, uer, cdc, cac] = await Promise.all([
-        db.serviceRequest.count({ where: { requestType: 'GMC', createdAt: { gte: mStart, lte: mEnd } } }),
-        db.serviceRequest.count({ where: { requestType: 'UER', createdAt: { gte: mStart, lte: mEnd } } }),
-        db.serviceRequest.count({ where: { requestType: 'CDC', createdAt: { gte: mStart, lte: mEnd } } }),
-        db.serviceRequest.count({ where: { requestType: 'CAC', createdAt: { gte: mStart, lte: mEnd } } }),
-      ]);
-
-      trendData.push({
-        month: `${monthNames[d.getMonth()]} ${d.getFullYear()}`,
-        GMC: gmc,
-        UER: uer,
-        CDC: cdc,
-        CAC: cac,
-        total: gmc + uer + cdc + cac,
-      });
-    }
-
-    // ── Monthly comparison (this month vs last month) ──
     const lastMonthStart = new Date();
     lastMonthStart.setMonth(lastMonthStart.getMonth() - 1);
     lastMonthStart.setDate(1);
     lastMonthStart.setHours(0, 0, 0, 0);
     const lastMonthEnd = new Date(new Date().getFullYear(), new Date().getMonth(), 0, 23, 59, 59, 999);
 
-    const comparisonData = await Promise.all([
+    const now = new Date();
+
+    // ════════════════════════════════════════════════════════════════════
+    // BATCH 1 — Core counts, summaries & user profile  (20 queries)
+    //   Includes: type counts, status counts, totalRequests, unique
+    //   counters (2 of 7 — rest derived), daily/monthly summaries, user.
+    // ════════════════════════════════════════════════════════════════════
+    const [
+      gmcCount, uerCount, cdcCount, cacCount, complaintCount,
+      submittedCount, forReviewCount, forIssuanceCount, issuedCount, holdCount, rejectedCount,
+      totalRequests,
+      activeComplaints, disciplinaryThisMonth,
+      dailyTotal, dailyPending, dailyIssued,
+      monthlyTotal, monthlyPending, monthlyIssued,
+      dbUser,
+    ] = await Promise.all([
+      // — Request type counts —
+      db.serviceRequest.count({ where: { requestType: 'GMC' } }),
+      db.serviceRequest.count({ where: { requestType: 'UER' } }),
+      db.serviceRequest.count({ where: { requestType: 'CDC' } }),
+      db.serviceRequest.count({ where: { requestType: 'CAC' } }),
+      db.complaint.count(),
+      // — Status counts —
+      db.serviceRequest.count({ where: { status: { in: ['Submitted', 'New'] } } }),
+      db.serviceRequest.count({ where: { status: { in: ['For Review', 'Processing'] } } }),
+      db.serviceRequest.count({ where: { status: 'For Issuance' } }),
+      db.serviceRequest.count({ where: { status: { in: ['Issued', 'Released'] } } }),
+      db.serviceRequest.count({ where: { status: 'Hold' } }),
+      db.serviceRequest.count({ where: { status: 'Rejected' } }),
+      // — Total requests —
+      db.serviceRequest.count(),
+      // — Unique counters (only 2; remaining 5 derived from already-fetched values) —
+      db.complaint.count({ where: { caseStatus: { in: ['Pending', 'Under Review'] } } }),
+      db.disciplinaryCase.count({ where: { createdAt: { gte: monthStart, lte: monthEnd } } }),
+      // — Daily summary —
+      db.serviceRequest.count({ where: { createdAt: { gte: todayStart, lte: todayEnd } } }),
+      db.serviceRequest.count({
+        where: {
+          createdAt: { gte: todayStart, lte: todayEnd },
+          status: { in: ['Submitted', 'For Review', 'New', 'Processing'] },
+        },
+      }),
+      db.serviceRequest.count({
+        where: { status: { in: ['Issued', 'Released'] }, issuedAt: { gte: todayStart, lte: todayEnd } },
+      }),
+      // — Monthly summary —
+      db.serviceRequest.count({ where: { createdAt: { gte: monthStart, lte: monthEnd } } }),
+      db.serviceRequest.count({
+        where: {
+          createdAt: { gte: monthStart, lte: monthEnd },
+          status: { in: ['Submitted', 'For Review', 'New', 'Processing'] },
+        },
+      }),
+      db.serviceRequest.count({
+        where: { status: { in: ['Issued', 'Released'] }, issuedAt: { gte: monthStart, lte: monthEnd } },
+      }),
+      // — User profile —
+      db.user.findUnique({
+        where: { id: session.user.id },
+        select: { profileImageUrl: true },
+      }),
+    ]);
+
+    // Derive counters from already-fetched data (eliminates 7 duplicate queries):
+    //   pendingRequests   == submittedCount + forReviewCount
+    //   todayNewRequests  == dailyTotal           (identical WHERE clause)
+    //   forIssuancePending == forIssuanceCount     (identical WHERE clause)
+    //   onHoldRequests    == holdCount             (identical WHERE clause)
+    //   issuedToday       == dailyIssued           (identical WHERE clause)
+    const pendingRequests = submittedCount + forReviewCount;
+    const todayNewRequests = dailyTotal;
+    const forIssuancePending = forIssuanceCount;
+    const onHoldRequests = holdCount;
+    const issuedToday = dailyIssued;
+
+    const dailyResolvedPct = dailyTotal > 0 ? Math.round((dailyIssued / dailyTotal) * 100) : 0;
+    const monthlyResolvedPct = monthlyTotal > 0 ? Math.round((monthlyIssued / monthlyTotal) * 100) : 0;
+
+    // ════════════════════════════════════════════════════════════════════
+    // BATCH 2 — Trend data: 6 months × 4 types  (24 queries in one shot)
+    // ════════════════════════════════════════════════════════════════════
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    // Pre-compute all month ranges synchronously
+    const monthRanges = Array.from({ length: 6 }, (_, i) => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - (5 - i));
+      return {
+        label: `${monthNames[d.getMonth()]} ${d.getFullYear()}`,
+        start: new Date(d.getFullYear(), d.getMonth(), 1),
+        end: new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999),
+      };
+    });
+
+    // Fire ALL 24 count queries in a single Promise.all (was 6 sequential iterations)
+    const trendCounts = await Promise.all(
+      monthRanges.flatMap(({ start, end }) => [
+        db.serviceRequest.count({ where: { requestType: 'GMC', createdAt: { gte: start, lte: end } } }),
+        db.serviceRequest.count({ where: { requestType: 'UER', createdAt: { gte: start, lte: end } } }),
+        db.serviceRequest.count({ where: { requestType: 'CDC', createdAt: { gte: start, lte: end } } }),
+        db.serviceRequest.count({ where: { requestType: 'CAC', createdAt: { gte: start, lte: end } } }),
+      ]),
+    );
+
+    // Reconstruct trend array from flat results
+    const trendData = monthRanges.map((range, i) => {
+      const base = i * 4;
+      return {
+        month: range.label,
+        GMC: trendCounts[base],
+        UER: trendCounts[base + 1],
+        CDC: trendCounts[base + 2],
+        CAC: trendCounts[base + 3],
+        total: trendCounts[base] + trendCounts[base + 1] + trendCounts[base + 2] + trendCounts[base + 3],
+      };
+    });
+
+    // ════════════════════════════════════════════════════════════════════
+    // BATCH 3 — Comparison, categories, latest items & announcements (10 queries)
+    //   comparisonData this-month requests  = monthlyTotal    (from batch 1)
+    //   comparisonData this-month disciplinary = disciplinaryThisMonth (from batch 1)
+    // ════════════════════════════════════════════════════════════════════
+    const [
+      lastMonthRequests,
+      lastMonthComplaints,
+      lastMonthDisciplinary,
+      thisMonthComplaints,
+      complaintCategoryRaw,
+      latestServiceRequests,
+      latestComplaints,
+      latestDisciplinary,
+      latestAnnouncements,
+      staffAnnouncements,
+    ] = await Promise.all([
+      // — Comparison: last month —
+      db.serviceRequest.count({ where: { createdAt: { gte: lastMonthStart, lte: lastMonthEnd } } }),
+      db.complaint.count({ where: { createdAt: { gte: lastMonthStart, lte: lastMonthEnd } } }),
+      db.disciplinaryCase.count({ where: { createdAt: { gte: lastMonthStart, lte: lastMonthEnd } } }),
+      // — Comparison: this month (requests & disciplinary already fetched in batch 1) —
+      db.complaint.count({ where: { createdAt: { gte: monthStart, lte: monthEnd } } }),
+      // — Complaint category breakdown (single GROUP BY — replaces findMany of ALL rows) —
+      db.$queryRaw<Array<{ name: string; count: number }>>`
+        SELECT COALESCE(NULLIF("category",''), NULLIF("complaintCategory",''), 'Uncategorized') AS name, COUNT(*) AS count
+        FROM "Complaint"
+        GROUP BY name
+      `,
+      // — Latest 5 service requests —
+      db.serviceRequest.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          requestNumber: true,
+          requestType: true,
+          requestorName: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+      // — Latest 5 complaints —
+      db.complaint.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          complaintNumber: true,
+          subject: true,
+          caseStatus: true,
+          category: true,
+          createdAt: true,
+        },
+      }),
+      // — Latest 5 disciplinary records —
+      db.disciplinaryCase.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          studentName: true,
+          studentNumber: true,
+          violationType: true,
+          violationCategory: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+      // — Latest announcements —
+      db.announcement.findMany({
+        where: { postedFrom: { lte: now }, postedTo: { gte: now } },
+        orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+        take: 5,
+        select: {
+          id: true,
+          title: true,
+          body: true,
+          postedFrom: true,
+          postedTo: true,
+          isPinned: true,
+          createdAt: true,
+        },
+      }),
+      // — Staff-visible announcements —
+      db.announcement.findMany({
+        where: {
+          postedFrom: { lte: now },
+          postedTo: { gte: now },
+          visibility: { in: ['Staff', 'All'] },
+        },
+        orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+        take: 8,
+        select: {
+          id: true,
+          title: true,
+          body: true,
+          visibility: true,
+          postedFrom: true,
+          postedTo: true,
+          isPinned: true,
+          createdAt: true,
+          fileUrl: true,
+        },
+      }),
+    ]);
+
+    // Assemble comparison data (reuses monthlyTotal & disciplinaryThisMonth from batch 1)
+    const comparisonData = [
       {
         period: 'Last Month',
-        requests: await db.serviceRequest.count({ where: { createdAt: { gte: lastMonthStart, lte: lastMonthEnd } } }),
-        complaints: await db.complaint.count({ where: { createdAt: { gte: lastMonthStart, lte: lastMonthEnd } } }),
-        disciplinary: await db.disciplinaryCase.count({ where: { createdAt: { gte: lastMonthStart, lte: lastMonthEnd } } }),
+        requests: lastMonthRequests,
+        complaints: lastMonthComplaints,
+        disciplinary: lastMonthDisciplinary,
       },
       {
         period: 'This Month',
-        requests: await db.serviceRequest.count({ where: { createdAt: { gte: monthStart, lte: monthEnd } } }),
-        complaints: await db.complaint.count({ where: { createdAt: { gte: monthStart, lte: monthEnd } } }),
-        disciplinary: await db.disciplinaryCase.count({ where: { createdAt: { gte: monthStart, lte: monthEnd } } }),
+        requests: monthlyTotal,
+        complaints: thisMonthComplaints,
+        disciplinary: disciplinaryThisMonth,
       },
-    ]).then(results => results);
+    ];
 
-    // ── Complaint category breakdown ──
-    const allComplaints = await db.complaint.findMany({
-      select: { category: true, complaintCategory: true },
-    });
-
-    const complaintCategories: Record<string, number> = {};
-    for (const c of allComplaints) {
-      const cat = c.category || c.complaintCategory || 'Uncategorized';
-      complaintCategories[cat] = (complaintCategories[cat] || 0) + 1;
-    }
-
-    const complaintCategoryData = Object.entries(complaintCategories).map(([name, count]) => ({
-      name,
-      count,
-    }));
-
-    // ── Latest 5 service requests ──
-    const latestServiceRequests = await db.serviceRequest.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-      select: {
-        id: true,
-        requestNumber: true,
-        requestType: true,
-        requestorName: true,
-        status: true,
-        createdAt: true,
-      },
-    });
-
-    // ── Latest 5 complaints ──
-    const latestComplaints = await db.complaint.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-      select: {
-        id: true,
-        complaintNumber: true,
-        subject: true,
-        caseStatus: true,
-        category: true,
-        createdAt: true,
-      },
-    });
-
-    // ── Latest 5 disciplinary records ──
-    const latestDisciplinary = await db.disciplinaryCase.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 5,
-      select: {
-        id: true,
-        studentName: true,
-        studentNumber: true,
-        violationType: true,
-        violationCategory: true,
-        status: true,
-        createdAt: true,
-      },
-    });
-
-    // ── Latest announcements ──
-    const now = new Date();
-    const latestAnnouncements = await db.announcement.findMany({
-      where: {
-        postedFrom: { lte: now },
-        postedTo: { gte: now },
-      },
-      orderBy: [
-        { isPinned: 'desc' },
-        { createdAt: 'desc' },
-      ],
-      take: 5,
-      select: {
-        id: true,
-        title: true,
-        body: true,
-        postedFrom: true,
-        postedTo: true,
-        isPinned: true,
-        createdAt: true,
-      },
-    });
-
-    // ── Staff-visible announcements (visibility = 'Staff' or 'All') ──
-    const staffAnnouncements = await db.announcement.findMany({
-      where: {
-        postedFrom: { lte: now },
-        postedTo: { gte: now },
-        visibility: { in: ['Staff', 'All'] },
-      },
-      orderBy: [
-        { isPinned: 'desc' },
-        { createdAt: 'desc' },
-      ],
-      take: 8,
-      select: {
-        id: true,
-        title: true,
-        body: true,
-        visibility: true,
-        postedFrom: true,
-        postedTo: true,
-        isPinned: true,
-        createdAt: true,
-        fileUrl: true,
-      },
-    });
-
-    // ── Daily & Monthly summaries ──
-    const [dailyTotal, dailyPending, dailyIssued] = await Promise.all([
-      db.serviceRequest.count({ where: { createdAt: { gte: todayStart, lte: todayEnd } } }),
-      db.serviceRequest.count({ where: { createdAt: { gte: todayStart, lte: todayEnd }, status: { in: ['Submitted', 'For Review', 'New', 'Processing'] } } }),
-      db.serviceRequest.count({ where: { status: { in: ['Issued', 'Released'] }, issuedAt: { gte: todayStart, lte: todayEnd } } }),
-    ]);
-    const dailyResolvedPct = dailyTotal > 0 ? Math.round((dailyIssued / dailyTotal) * 100) : 0;
-
-    const [monthlyTotal, monthlyPending, monthlyIssued] = await Promise.all([
-      db.serviceRequest.count({ where: { createdAt: { gte: monthStart, lte: monthEnd } } }),
-      db.serviceRequest.count({ where: { createdAt: { gte: monthStart, lte: monthEnd }, status: { in: ['Submitted', 'For Review', 'New', 'Processing'] } } }),
-      db.serviceRequest.count({ where: { status: { in: ['Issued', 'Released'] }, issuedAt: { gte: monthStart, lte: monthEnd } } }),
-    ]);
-    const monthlyResolvedPct = monthlyTotal > 0 ? Math.round((monthlyIssued / monthlyTotal) * 100) : 0;
-
-    // Fetch profile image from DB (not from JWT cookie — prevents cookie bloat)
-    const dbUser = await db.user.findUnique({
-      where: { id: session.user.id },
-      select: { profileImageUrl: true },
-    });
-
+    // ════════════════════════════════════════════════════════════════════
+    // Response
+    // ════════════════════════════════════════════════════════════════════
     const response = NextResponse.json({
       // User info
       user: {
@@ -257,7 +283,14 @@ export async function GET() {
       complaintCount,
 
       // Status counts
-      statusCounts: { Submitted: submittedCount, 'For Review': forReviewCount, 'For Issuance': forIssuanceCount, Issued: issuedCount, Hold: holdCount, Rejected: rejectedCount },
+      statusCounts: {
+        Submitted: submittedCount,
+        'For Review': forReviewCount,
+        'For Issuance': forIssuanceCount,
+        Issued: issuedCount,
+        Hold: holdCount,
+        Rejected: rejectedCount,
+      },
       totalRequests,
 
       // Announcements
@@ -282,20 +315,24 @@ export async function GET() {
       // Analytics
       trendData,
       comparisonData,
-      complaintCategoryData,
+      complaintCategoryData: complaintCategoryRaw.map((row) => ({
+        name: row.name,
+        count: Number(row.count),
+      })),
 
       // Recent activity
       latestServiceRequests,
       latestComplaints,
       latestDisciplinary,
     });
+
     response.headers.set('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
     return response;
   } catch (error) {
     console.error('Failed to fetch dashboard data:', error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { error: 'Failed to fetch dashboard data' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

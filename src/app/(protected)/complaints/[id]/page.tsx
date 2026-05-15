@@ -337,6 +337,9 @@ export default function ComplaintDetailPage({
                 if (q && !alreadyShown.has(q.label)) {
                   dynamicFields.push({ label: q.label, value });
                   alreadyShown.add(q.label);
+                } else if (!q && value) {
+                  dynamicFields.push({ label: `Deleted Field (${qId.slice(0, 8)}...)`, value });
+                  alreadyShown.add(`deleted-${qId}`);
                 }
               }
             }

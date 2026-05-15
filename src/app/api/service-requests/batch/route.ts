@@ -362,49 +362,57 @@ export async function PATCH(request: NextRequest) {
 
     const updatedRequests = requests.filter(r => successIds.includes(r.id));
     const isIssueAction = action === 'issue' || action === 'release';
+    const trimmedRemarks = remarks?.trim() || null;
+    const now = new Date();
 
-    // IMMEDIATE: Update all requests in DB first
-    for (const req of updatedRequests) {
+    // Build all update + audit log operations upfront, then execute in a single
+    // atomic transaction with Promise.all for maximum parallelism.
+    const updateOps = updatedRequests.map(req => {
       const updateData: Record<string, unknown> = {
         status: targetStatus,
-        remarks: remarks?.trim() || req.remarks,
+        remarks: trimmedRemarks || req.remarks,
       };
 
       if (!isIssueAction) {
         updateData.reviewedByName = session.user.fullName;
-        updateData.reviewedAt = new Date();
+        updateData.reviewedAt = now;
       }
 
       if (isIssueAction) {
         updateData.issuedByName = session.user.fullName;
-        updateData.issuedAt = new Date();
+        updateData.issuedAt = now;
       }
 
-      await db.serviceRequest.update({
+      return db.serviceRequest.update({
         where: { id: req.id },
         data: updateData,
       });
+    });
 
-      // Create audit log
-      try {
-        await db.auditLog.create({
-          data: {
-            performedBy: session.user.id,
-            performerName: session.user.fullName,
-            performerRole: session.user.role,
-            actionType: 'STATUS_UPDATE',
-            module: 'service_request',
-            recordId: req.id,
-            oldValue: JSON.stringify({ status: req.status }),
-            newValue: JSON.stringify({ status: targetStatus, remarks: remarks?.trim() || null, action }),
-            remarks: `Batch status change from ${STATUS_LABELS[req.status] || req.status} to ${STATUS_LABELS[targetStatus] || targetStatus}`,
-          },
-        });
-      } catch (auditErr) {
-        console.error('[Audit Batch] Failed to create audit log:', auditErr);
-      }
+    const auditOps = updatedRequests.map(req =>
+      db.auditLog.create({
+        data: {
+          performedBy: session.user.id,
+          performerName: session.user.fullName,
+          performerRole: session.user.role,
+          actionType: 'STATUS_UPDATE',
+          module: 'service_request',
+          recordId: req.id,
+          oldValue: JSON.stringify({ status: req.status }),
+          newValue: JSON.stringify({ status: targetStatus, remarks: trimmedRemarks, action }),
+          remarks: `Batch status change from ${STATUS_LABELS[req.status] || req.status} to ${STATUS_LABELS[targetStatus] || targetStatus}`,
+        },
+      })
+    );
 
-      // BACKGROUND: Process PDF + email for this request
+    // Execute all updates + audit logs atomically in a single transaction
+    await db.$transaction([
+      ...updateOps,
+      ...auditOps,
+    ]);
+
+    // BACKGROUND: Fire off PDF + email processing for all requests (non-blocking)
+    for (const req of updatedRequests) {
       processBatchRequestInBackground({
         req: {
           id: req.id,
@@ -427,7 +435,7 @@ export async function PATCH(request: NextRequest) {
           fullName: session.user.fullName,
           role: session.user.role,
         },
-        remarks: remarks?.trim() || null,
+        remarks: trimmedRemarks,
       });
     }
 

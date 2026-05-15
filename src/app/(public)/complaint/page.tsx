@@ -266,7 +266,7 @@ function DynamicField({
             value={value || ''}
             onChange={(e) => onChange(question.id, e.target.value)}
             placeholder={question.placeholder || `Enter ${question.label.toLowerCase()}`}
-            rows={question.id === 'description' ? 5 : 3}
+            rows={question.label.toLowerCase().includes('description') ? 5 : 3}
             className={inputClass}
           />
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -513,7 +513,7 @@ function DynamicPersonForm({
           dynamicChoices={dynamicChoices}
         />
         {/* College/Institute "Other" conditional */}
-        {(q.id === 'collegeInstitute' || q.id === 'resp_collegeInstitute') && val === 'Other' && (
+        {(q.label.toLowerCase().includes('college') || q.label.toLowerCase().includes('institute')) && val === 'Other' && (
           <div className="space-y-2 animate-fade-in mt-2">
             <Label htmlFor={`${prefix}-collegeInstituteOther-${index}`} className="text-xs font-medium">
               Please specify your College/Institute <span className="text-destructive">*</span>
@@ -773,12 +773,12 @@ export default function ComplaintPage() {
         if (!val || val.trim() === '') {
           fieldErrors[`${i}.${q.id}`] = `${q.label} is required`;
         }
-        // Special validations (check both prefixed and non-prefixed IDs)
-        const cId = canonicalId(q.id);
-        if (cId === 'studentNumber' && val && !STUDENT_NUMBER_REGEX.test(val)) {
+        // Special validations (label-based matching for CMS-generated CUIDs)
+        const label = q.label.toLowerCase();
+        if (label.includes('student') && label.includes('number') && val && !STUDENT_NUMBER_REGEX.test(val)) {
           fieldErrors[`${i}.${q.id}`] = 'Must be a letter followed by numbers (e.g., K12345678)';
         }
-        if (cId === 'email' && val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+        if (label.includes('email') && val && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
           fieldErrors[`${i}.${q.id}`] = 'Invalid email address';
         }
       }
@@ -1491,7 +1491,10 @@ export default function ComplaintPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {unsectionedQuestions.sort((a, b) => a.sortOrder - b.sortOrder).map(q => {
-                if (q.id === 'howOften' && answers['isOngoing'] !== 'Yes') return null;
+                if (q.label.toLowerCase().includes('how often')) {
+                  const ongoingQ = questions.find(oq => oq.label.toLowerCase().includes('ongoing'));
+                  if (ongoingQ && answers[ongoingQ.id] !== 'Yes') return null;
+                }
                 const listType = getDynamicListType(q.choices);
                 const dynamicChoices = listType ? dynamicLists[listType] || null : null;
                 return (
@@ -1603,12 +1606,12 @@ export default function ComplaintPage() {
       if (filledFields.length === 0) return null;
 
       // Group: name fields first, then remaining (check both prefixed and non-prefixed)
-      const isNameField = (qId: string) => {
-        const cId = canonicalId(qId);
-        return ['givenName', 'surname', 'middleName', 'extensionName'].includes(cId);
+      const isNameField = (q: FormQuestion) => {
+        const label = q.label.toLowerCase();
+        return ['given name', 'surname', 'middle name', 'extension name', 'last name'].some(k => label.includes(k));
       };
-      const nameFields = filledFields.filter(q => isNameField(q.id));
-      const otherFields = filledFields.filter(q => !isNameField(q.id));
+      const nameFields = filledFields.filter(q => isNameField(q));
+      const otherFields = filledFields.filter(q => !isNameField(q));
 
       // Build name line using canonical field names
       const gName = getPersonField(person, 'givenName') || getPersonField(person, 'resp_givenName');
@@ -1629,12 +1632,11 @@ export default function ComplaintPage() {
           {otherFields.length > 0 && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
               {otherFields.map(q => {
-                const cId = canonicalId(q.id);
                 return (
                   <span key={q.id} className="flex items-center gap-1">
                     <span className="text-xs font-medium text-muted-foreground/70">{q.label}:</span>
-                    {cId === 'email' && <Mail className="size-3 shrink-0" />}
-                    {cId === 'sex' && <User className="size-3 shrink-0" />}
+                    {q.label.toLowerCase().includes('email') && <Mail className="size-3 shrink-0" />}
+                    {q.label.toLowerCase().includes('sex') && <User className="size-3 shrink-0" />}
                     <span>{getPersonField(person, q.id)}</span>
                   </span>
                 );

@@ -16,6 +16,6 @@ export function useNotificationCount() {
     queryKey: ['notifications', 'count'],
     queryFn: () => apiFetch<NotificationCountResponse>('/api/notifications/count'),
     staleTime: 15_000,
-    refetchInterval: 30_000, // Poll every 30 seconds
+    // No refetchInterval — NotificationProvider already polls every 30s
   });
 }

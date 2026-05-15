@@ -9,26 +9,34 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const totalRequests = await db.serviceRequest.count();
-    const issuedCount = await db.serviceRequest.count({ where: { status: { in: ['Issued', 'Released'] } } });
-    const complaintCount = await db.complaint.count();
-    const disciplinaryCount = await db.disciplinaryCase.count();
-
-    // Count unique requestors without exposing PII — only need the count, not emails
-    const uniqueRequestorCount = await db.serviceRequest.groupBy({
-      by: ['requestorEmail'],
-      _count: { _all: true },
-    });
-
     // Monthly requests this year
     const yearStart = new Date();
     yearStart.setMonth(0, 1);
     yearStart.setHours(0, 0, 0, 0);
-    const monthlyRequests = await db.serviceRequest.count({
-      where: { createdAt: { gte: yearStart } },
-    });
 
-    return NextResponse.json({
+    const [
+      totalRequests,
+      issuedCount,
+      complaintCount,
+      disciplinaryCount,
+      uniqueRequestorCount,
+      monthlyRequests,
+    ] = await Promise.all([
+      db.serviceRequest.count(),
+      db.serviceRequest.count({ where: { status: { in: ['Issued', 'Released'] } } }),
+      db.complaint.count(),
+      db.disciplinaryCase.count(),
+      // Count unique requestors without exposing PII — only need the count, not emails
+      db.serviceRequest.groupBy({
+        by: ['requestorEmail'],
+        _count: { _all: true },
+      }),
+      db.serviceRequest.count({
+        where: { createdAt: { gte: yearStart } },
+      }),
+    ]);
+
+    const response = NextResponse.json({
       totalRequests,
       certificatesIssued: issuedCount,
       activeStudents: uniqueRequestorCount.length,
@@ -36,6 +44,9 @@ export async function GET() {
       disciplinaryRecords: disciplinaryCount,
       monthlyRequests,
     });
+
+    response.headers.set('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+    return response;
   } catch (error) {
     console.error('Failed to fetch stats:', error instanceof Error ? error.message : String(error));
     return NextResponse.json(

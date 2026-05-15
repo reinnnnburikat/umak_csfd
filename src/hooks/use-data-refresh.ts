@@ -1,21 +1,31 @@
 'use client';
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNotificationContext } from '@/components/providers/notification-provider';
 
 /**
  * Hook that listens for data-refresh events from Socket.IO
  * and triggers a callback when relevant data changes.
+ *
+ * Note: `onRefresh` is stored via ref so that callers don't need
+ * to wrap their callback in `useCallback`. This avoids the effect
+ * re-firing when the function reference changes between renders.
  */
 export function useDataRefresh(modules: string[], onRefresh: () => void) {
   const { lastRefreshEvent } = useNotificationContext();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefreshRef = useRef(onRefresh);
+
+  // Keep the ref current without triggering the main effect
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  }, [onRefresh]);
 
   useEffect(() => {
     if (lastRefreshEvent && modules.includes(lastRefreshEvent.module)) {
       const startTimer = setTimeout(() => setIsRefreshing(true), 0);
-      onRefresh();
+      onRefreshRef.current();
       // Small delay to show refresh indicator
       const endTimer = setTimeout(() => setIsRefreshing(false), 1000);
       return () => {
@@ -23,7 +33,7 @@ export function useDataRefresh(modules: string[], onRefresh: () => void) {
         clearTimeout(endTimer);
       };
     }
-  }, [lastRefreshEvent, modules, onRefresh]);
+  }, [lastRefreshEvent, modules]);
 
   return { isRefreshing };
 }

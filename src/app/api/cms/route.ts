@@ -92,15 +92,16 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const results = [];
-    for (const item of items) {
-      const content = await db.cmsContent.upsert({
-        where: { key: item.key },
-        update: { label: item.label, value: item.value, updatedBy: session.user.id },
-        create: { key: item.key, label: item.label, value: item.value, updatedBy: session.user.id },
-      });
-      results.push(content);
-    }
+    // Execute all upserts in a single atomic transaction for parallelism
+    const results = await db.$transaction(
+      items.map(item =>
+        db.cmsContent.upsert({
+          where: { key: item.key },
+          update: { label: item.label, value: item.value, updatedBy: session.user.id },
+          create: { key: item.key, label: item.label, value: item.value, updatedBy: session.user.id },
+        })
+      )
+    );
 
     await createAuditLog({
       performedBy: session.user.id,

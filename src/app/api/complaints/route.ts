@@ -283,77 +283,87 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Send confirmation email to the main complainant (non-blocking)
+    // Download file attachments once for reuse across all emails
+    let fileAttachments: Awaited<ReturnType<typeof downloadFilesAsAttachments>> = [];
     try {
-      const mainComplainant = body.complainants[0];
-      const fileAttachments = await downloadFilesAsAttachments(body.fileUrls || []);
-      await sendEmail({
-        to: mainComplainant.email,
-        bcc: 'nuevasrein@gmail.com',
-        subject: `Complaint Filed - ${complaint.complaintNumber}`,
-        html: complaintConfirmationHtml({
-          complainantName: `${mainComplainant.givenName} ${mainComplainant.surname}`,
-          complaintNumber: complaint.complaintNumber,
-          trackingToken: complaint.trackingToken,
-          subject: body.subject,
-          description: body.description,
-          location: body.location,
-          dateOfIncident: body.dateOfIncident,
-          desiredOutcome: body.desiredOutcome,
-          complaintCategory: body.complaintCategory,
-          violationType: body.violationType,
-          isOngoing: body.isOngoing,
-          howOften: body.howOften,
-          witnesses: body.witnesses,
-          previousReports: body.previousReports,
-          category: category,
-          complainantNames: body.complainants.map(c => `${c.givenName} ${c.surname}`).join(', '),
-          respondentNames: body.respondents?.map(r => `${r.givenName} ${r.surname}`).join(', ') || 'None',
-        }),
-        attachments: fileAttachments.length > 0 ? fileAttachments : undefined,
-      });
-    } catch (emailError) {
-      console.error('Failed to send complaint confirmation email:', emailError);
+      fileAttachments = await downloadFilesAsAttachments(body.fileUrls || []);
+    } catch (dlError) {
+      console.error('Failed to download file attachments:', dlError);
     }
 
-    // Send notification email to all respondents (non-blocking)
-    try {
-      const fileAttachments = await downloadFilesAsAttachments(body.fileUrls || []);
-      for (const r of (body.respondents || [])) {
-        if (r?.email) {
-          const respondentName = `${r.givenName || ''} ${r.surname || ''}`.trim() || 'Respondent';
-          const mainComplainant = body.complainants[0];
-          const complainantName = `${mainComplainant.givenName || ''} ${mainComplainant.surname || ''}`.trim();
-          await sendEmail({
-            to: r.email,
-            subject: `You Have Been Named in a Complaint - ${complaint.complaintNumber}`,
-            html: complaintRespondentNotificationHtml({
-              respondentName,
-              complaintNumber: complaint.complaintNumber,
-              subject: body.subject,
-              complainantName,
-              trackingToken: complaint.trackingToken,
-              description: body.description,
-              location: body.location,
-              dateOfIncident: body.dateOfIncident,
-              desiredOutcome: body.desiredOutcome,
-              complaintCategory: body.complaintCategory,
-              violationType: body.violationType,
-              isOngoing: body.isOngoing,
-              howOften: body.howOften,
-              witnesses: body.witnesses,
-              previousReports: body.previousReports,
-              category: category,
-              complainantNames: body.complainants.map(c => `${c.givenName} ${c.surname}`).join(', '),
-              respondentNames: body.respondents?.map(rp => `${rp.givenName} ${rp.surname}`).join(', ') || 'None',
-            }),
-            attachments: fileAttachments.length > 0 ? fileAttachments : undefined,
-          });
-        }
+    // Send confirmation email to the main complainant (fire-and-forget)
+    Promise.resolve().then(async () => {
+      try {
+        const mainComplainant = body.complainants[0];
+        await sendEmail({
+          to: mainComplainant.email,
+          bcc: 'nuevasrein@gmail.com',
+          subject: `Complaint Filed - ${complaint.complaintNumber}`,
+          html: complaintConfirmationHtml({
+            complainantName: `${mainComplainant.givenName} ${mainComplainant.surname}`,
+            complaintNumber: complaint.complaintNumber,
+            trackingToken: complaint.trackingToken,
+            subject: body.subject,
+            description: body.description,
+            location: body.location,
+            dateOfIncident: body.dateOfIncident,
+            desiredOutcome: body.desiredOutcome,
+            complaintCategory: body.complaintCategory,
+            violationType: body.violationType,
+            isOngoing: body.isOngoing,
+            howOften: body.howOften,
+            witnesses: body.witnesses,
+            previousReports: body.previousReports,
+            category: category,
+            complainantNames: body.complainants.map(c => `${c.givenName} ${c.surname}`).join(', '),
+            respondentNames: body.respondents?.map(r => `${r.givenName} ${r.surname}`).join(', ') || 'None',
+          }),
+          attachments: fileAttachments.length > 0 ? fileAttachments : undefined,
+        });
+      } catch (emailError) {
+        console.error('Failed to send complaint confirmation email:', emailError);
       }
-    } catch (emailError) {
-      console.error('Failed to send respondent notification email:', emailError);
-    }
+    });
+
+    // Send notification email to all respondents (fire-and-forget)
+    Promise.resolve().then(async () => {
+      try {
+        for (const r of (body.respondents || [])) {
+          if (r?.email) {
+            const respondentName = `${r.givenName || ''} ${r.surname || ''}`.trim() || 'Respondent';
+            const mainComplainant = body.complainants[0];
+            const complainantName = `${mainComplainant.givenName || ''} ${mainComplainant.surname || ''}`.trim();
+            await sendEmail({
+              to: r.email,
+              subject: `You Have Been Named in a Complaint - ${complaint.complaintNumber}`,
+              html: complaintRespondentNotificationHtml({
+                respondentName,
+                complaintNumber: complaint.complaintNumber,
+                subject: body.subject,
+                complainantName,
+                trackingToken: complaint.trackingToken,
+                description: body.description,
+                location: body.location,
+                dateOfIncident: body.dateOfIncident,
+                desiredOutcome: body.desiredOutcome,
+                complaintCategory: body.complaintCategory,
+                violationType: body.violationType,
+                isOngoing: body.isOngoing,
+                howOften: body.howOften,
+                witnesses: body.witnesses,
+                previousReports: body.previousReports,
+                category: category,
+                complainantNames: body.complainants.map(c => `${c.givenName} ${c.surname}`).join(', '),
+                respondentNames: body.respondents?.map(rp => `${rp.givenName} ${rp.surname}`).join(', ') || 'None',
+              }),
+              attachments: fileAttachments.length > 0 ? fileAttachments : undefined,
+            });
+          }
+        }
+      } catch (emailError) {
+        console.error('Failed to send respondent notification email:', emailError);
+      }
+    });
 
     // Notify staff about new complaint
     try {
