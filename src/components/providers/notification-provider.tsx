@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/components/providers/session-provider';
 import { useSocket } from '@/hooks/use-socket';
 import { toast } from 'sonner';
@@ -24,6 +24,7 @@ interface NotificationContextType {
   unreadCount: number;
   lastNotification: NotificationEvent | null;
   lastRefreshEvent: DataRefreshEvent | null;
+  refreshEventId: number; // Monotonically increasing counter — every event gets a unique ID
   isConnected: boolean;
   decrementUnread: (count?: number) => void;
   resetUnread: () => void;
@@ -34,6 +35,7 @@ const NotificationContext = createContext<NotificationContextType>({
   unreadCount: 0,
   lastNotification: null,
   lastRefreshEvent: null,
+  refreshEventId: 0,
   isConnected: false,
   decrementUnread: () => {},
   resetUnread: () => {},
@@ -50,6 +52,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastNotification, setLastNotification] = useState<NotificationEvent | null>(null);
   const [lastRefreshEvent, setLastRefreshEvent] = useState<DataRefreshEvent | null>(null);
+  const [refreshEventId, setRefreshEventId] = useState(0);
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -74,9 +77,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const cleanupNotification = on('notification', (notification: NotificationEvent) => {
-      setLastNotification(notification);
-      setUnreadCount((prev) => prev + 1);
+    const cleanupNotification = on('notification', (_notification: NotificationEvent) => {
+      setLastNotification(_notification);
+
+      // Instead of blindly incrementing (causes off-by-one), re-fetch accurate count
+      refreshUnreadCount();
 
       // Show toast notification
       const typeLabels: Record<string, string> = {
@@ -89,21 +94,23 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         info: 'ℹ️ Info',
       };
 
-      toast.info(notification.message, {
-        description: typeLabels[notification.type] || notification.type,
+      toast.info(_notification.message, {
+        description: typeLabels[_notification.type] || _notification.type,
         duration: 5000,
       });
     });
 
     const cleanupRefresh = on('data-refresh', (event: DataRefreshEvent) => {
       setLastRefreshEvent(event);
+      // Increment the event counter so consumers know this is a NEW event
+      setRefreshEventId((prev) => prev + 1);
     });
 
     return () => {
       cleanupNotification();
       cleanupRefresh();
     };
-  }, [on, isAuthenticated]);
+  }, [on, isAuthenticated, refreshUnreadCount]);
 
   // Periodic sync of unread count (fallback for multi-tab consistency)
   useEffect(() => {
@@ -128,6 +135,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         unreadCount,
         lastNotification,
         lastRefreshEvent,
+        refreshEventId,
         isConnected,
         decrementUnread,
         resetUnread,

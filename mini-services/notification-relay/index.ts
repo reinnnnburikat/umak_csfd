@@ -68,15 +68,6 @@ const connectedUsers = new Map<string, { userId: string; role: string }>();
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function parseBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
-    req.on("error", reject);
-  });
-}
-
 function sendJson(res: ServerResponse, status: number, body: object) {
   res.writeHead(status, { "Content-Type": "application/json" });
   res.end(JSON.stringify(body));

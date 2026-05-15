@@ -81,8 +81,9 @@ export default function NotificationsPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [allNotifications, setAllNotifications] = useState<Notification[]>([]);
-  const { lastNotification, lastRefreshEvent, isConnected, decrementUnread, resetUnread, refreshUnreadCount } = useNotificationContext();
+  const { lastNotification, lastRefreshEvent, refreshEventId, isConnected, decrementUnread, resetUnread, refreshUnreadCount } = useNotificationContext();
   const prevConnectedRef = useRef(false);
+  const lastRefreshIdRef = useRef(0);
 
   // React Query invalidation for data-refresh events (future-proofing)
   useQueryInvalidation(['notifications']);
@@ -122,9 +123,9 @@ export default function NotificationsPage() {
     prevConnectedRef.current = isConnected;
   }, [isConnected, fetchNotifications]);
 
-  // Prepend new notification from Socket.IO
+  // Prepend new notification from Socket.IO (skip batch/fake IDs)
   useEffect(() => {
-    if (lastNotification && !allNotifications.find(n => n.id === lastNotification.id)) {
+    if (lastNotification && !lastNotification.id.startsWith('batch-') && !allNotifications.find(n => n.id === lastNotification.id)) {
       setAllNotifications(prev => [
         { ...lastNotification, userId: (lastNotification as unknown as Record<string, unknown>).userId as string || '', isRead: false },
         ...prev,
@@ -132,12 +133,15 @@ export default function NotificationsPage() {
     }
   }, [lastNotification, allNotifications]);
 
-  // Refresh when data-changed events arrive for relevant modules
+  // Refresh when data-refresh events arrive for relevant modules
   useEffect(() => {
-    if (lastRefreshEvent && ['complaints', 'service-requests', 'announcements'].includes(lastRefreshEvent.module)) {
-      fetchNotifications(1);
+    if (refreshEventId > lastRefreshIdRef.current && lastRefreshEvent) {
+      if (['complaints', 'service-requests', 'announcements'].includes(lastRefreshEvent.module)) {
+        lastRefreshIdRef.current = refreshEventId;
+        fetchNotifications(1);
+      }
     }
-  }, [lastRefreshEvent, fetchNotifications]);
+  }, [lastRefreshEvent, refreshEventId, fetchNotifications]);
 
   const handleMarkAllRead = async () => {
     try {
@@ -161,7 +165,7 @@ export default function NotificationsPage() {
 
   const handleMarkAsRead = async (notification: Notification) => {
     if (notification.isRead) {
-      // Navigate to related record if already read
+      // Already read — just navigate
       navigateToReference(notification);
       return;
     }
@@ -179,16 +183,18 @@ export default function NotificationsPage() {
           )
         );
         decrementUnread(1);
+        // Only navigate after successfully marking as read
+        navigateToReference(notification);
       }
     } catch (err) {
-      // Mark as read error
+      // Mark as read error — don't navigate
+      toast.error('Failed to mark as read');
     }
-
-    navigateToReference(notification);
   };
 
   const navigateToReference = (notification: Notification) => {
     if (notification.referenceType === 'service_request' && notification.referenceId) {
+      // Service requests don't have individual detail pages; go to list
       router.push('/service-requests');
     } else if (notification.referenceType === 'complaint' && notification.referenceId) {
       router.push(`/complaints/${notification.referenceId}`);

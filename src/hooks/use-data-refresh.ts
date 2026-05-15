@@ -8,32 +8,41 @@ import { useNotificationContext } from '@/components/providers/notification-prov
  * Hook that listens for data-refresh events from Socket.IO
  * and triggers a callback when relevant data changes.
  *
- * Note: `onRefresh` is stored via ref so that callers don't need
- * to wrap their callback in `useCallback`. This avoids the effect
- * re-firing when the function reference changes between renders.
+ * Uses refreshEventId (monotonically increasing counter) to ensure
+ * each event is only handled once, even when components re-mount.
  */
 export function useDataRefresh(modules: string[], onRefresh: () => void) {
-  const { lastRefreshEvent } = useNotificationContext();
+  const { lastRefreshEvent, refreshEventId } = useNotificationContext();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const onRefreshRef = useRef(onRefresh);
+  const lastHandledIdRef = useRef(0);
+  const modulesRef = useRef(modules);
 
-  // Keep the ref current without triggering the main effect
+  // Keep refs current without triggering the main effect
   useEffect(() => {
     onRefreshRef.current = onRefresh;
   }, [onRefresh]);
 
   useEffect(() => {
-    if (lastRefreshEvent && modules.includes(lastRefreshEvent.module)) {
-      const startTimer = setTimeout(() => setIsRefreshing(true), 0);
-      onRefreshRef.current();
-      // Small delay to show refresh indicator
-      const endTimer = setTimeout(() => setIsRefreshing(false), 1000);
-      return () => {
-        clearTimeout(startTimer);
-        clearTimeout(endTimer);
-      };
+    modulesRef.current = modules;
+  }, [modules]);
+
+  useEffect(() => {
+    // Only process if this is a genuinely NEW event (not already handled)
+    if (refreshEventId > lastHandledIdRef.current && lastRefreshEvent) {
+      if (modulesRef.current.includes(lastRefreshEvent.module)) {
+        lastHandledIdRef.current = refreshEventId;
+        const startTimer = setTimeout(() => setIsRefreshing(true), 0);
+        onRefreshRef.current();
+        // Small delay to show refresh indicator
+        const endTimer = setTimeout(() => setIsRefreshing(false), 1000);
+        return () => {
+          clearTimeout(startTimer);
+          clearTimeout(endTimer);
+        };
+      }
     }
-  }, [lastRefreshEvent, modules]);
+  }, [lastRefreshEvent, refreshEventId]);
 
   return { isRefreshing };
 }
@@ -45,24 +54,35 @@ export function useDataRefresh(modules: string[], onRefresh: () => void) {
  */
 export function useQueryInvalidation(modules: string[]) {
   const queryClient = useQueryClient();
-  const { lastRefreshEvent } = useNotificationContext();
+  const { lastRefreshEvent, refreshEventId } = useNotificationContext();
+  const lastHandledIdRef = useRef(0);
+  const modulesRef = useRef(modules);
 
   useEffect(() => {
-    if (lastRefreshEvent && modules.includes(lastRefreshEvent.module)) {
-      // Map module names to query key prefixes
-      const moduleToKeys: Record<string, string[][]> = {
-        complaints: [['complaints']],
-        disciplinary: [['disciplinary']],
-        'service-requests': [['service-requests']],
-        reports: [['reports']],
-        notifications: [['notifications']],
-        dashboard: [['dashboard']],
-      };
+    modulesRef.current = modules;
+  }, [modules]);
 
-      const keys = moduleToKeys[lastRefreshEvent.module];
-      if (keys) {
-        keys.forEach((key) => queryClient.invalidateQueries({ queryKey: key }));
+  useEffect(() => {
+    // Only process genuinely NEW events
+    if (refreshEventId > lastHandledIdRef.current && lastRefreshEvent) {
+      if (modulesRef.current.includes(lastRefreshEvent.module)) {
+        lastHandledIdRef.current = refreshEventId;
+
+        // Map module names to query key prefixes
+        const moduleToKeys: Record<string, string[][]> = {
+          complaints: [['complaints']],
+          disciplinary: [['disciplinary']],
+          'service-requests': [['service-requests']],
+          reports: [['reports']],
+          notifications: [['notifications']],
+          dashboard: [['dashboard']],
+        };
+
+        const keys = moduleToKeys[lastRefreshEvent.module];
+        if (keys) {
+          keys.forEach((key) => queryClient.invalidateQueries({ queryKey: key }));
+        }
       }
     }
-  }, [lastRefreshEvent, modules, queryClient]);
+  }, [lastRefreshEvent, refreshEventId, queryClient]);
 }

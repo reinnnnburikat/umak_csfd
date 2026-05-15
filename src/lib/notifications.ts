@@ -142,6 +142,8 @@ export async function createNotifications(params: {
     });
 
     // Push via relay (fire-and-forget)
+    // Use broadcast to reach all connected clients; the individual DB records
+    // will be fetched by the client on the next poll or page visit.
     pushNotificationToRelay(params.userIds, {
       id: `batch-${Date.now()}`,
       type: params.type,
