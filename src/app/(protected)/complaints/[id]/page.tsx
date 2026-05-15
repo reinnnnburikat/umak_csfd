@@ -397,19 +397,29 @@ export default function ComplaintDetailPage({
             <p className="text-sm text-muted-foreground">No complainant data available.</p>
           ) : (
             <div className="space-y-2">
-              {parsedComplainants.map((c, i) => (
-                <div key={i} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/30">
-                  <Badge variant="outline" className="mt-0.5 text-[10px] shrink-0">
-                    {i === 0 ? 'Main' : `Co-${i}`}
-                  </Badge>
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm">{formatPersonName(c)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {c.studentNumber} | {c.collegeInstitute} | {c.email}
-                    </p>
-                  </div>
-                </div>
-              ))}
+              {parsedComplainants.map((c, i) => {
+                  const personDetails = [
+                    c.studentNumber && `Student No.: ${c.studentNumber}`,
+                    c.collegeInstitute && c.collegeInstitute,
+                    c.email && c.email,
+                    c.yearLevel && `Year Level: ${c.yearLevel}`,
+                  ].filter(Boolean);
+                  return (
+                    <div key={i} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/30">
+                      <Badge variant="outline" className="mt-0.5 text-[10px] shrink-0">
+                        {i === 0 ? 'Main' : `Co-${i}`}
+                      </Badge>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm">{formatPersonName(c)}</p>
+                        {personDetails.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            {personDetails.join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </CardContent>
@@ -425,19 +435,29 @@ export default function ComplaintDetailPage({
             <p className="text-sm text-muted-foreground">No respondent data available.</p>
           ) : (
             <div className="space-y-2">
-              {parsedRespondents.map((r, i) => (
-                <div key={i} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/30">
-                  <Badge variant="outline" className="mt-0.5 text-[10px] shrink-0">
-                    {i === 0 ? 'Main' : `Co-${i}`}
-                  </Badge>
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm">{formatPersonName(r)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {r.studentNumber} | {r.collegeInstitute} | {r.email}
-                    </p>
-                  </div>
-                </div>
-              ))}
+              {parsedRespondents.map((r, i) => {
+                  const personDetails = [
+                    r.studentNumber && `Student No.: ${r.studentNumber}`,
+                    r.collegeInstitute && r.collegeInstitute,
+                    r.email && r.email,
+                    r.yearLevel && `Year Level: ${r.yearLevel}`,
+                  ].filter(Boolean);
+                  return (
+                    <div key={i} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/30">
+                      <Badge variant="outline" className="mt-0.5 text-[10px] shrink-0">
+                        {i === 0 ? 'Main' : `Co-${i}`}
+                      </Badge>
+                      <div className="min-w-0">
+                        <p className="font-medium text-sm">{formatPersonName(r)}</p>
+                        {personDetails.length > 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            {personDetails.join(' · ')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </CardContent>

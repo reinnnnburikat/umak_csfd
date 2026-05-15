@@ -86,8 +86,17 @@ function ComplaintCard({
                 <span className="font-medium">Complainant:</span>{' '}
                 {main.givenName} {main.middleName ? main.middleName + ' ' : ''}{main.surname}
                 {main.extensionName ? ' ' + main.extensionName : ''}
+                {main.studentNumber && (
+                  <>
+                    {' '}· {main.studentNumber}
+                  </>
+                )}
+                {main.collegeInstitute && (
+                  <>
+                    {' '}· {main.collegeInstitute}
+                  </>
+                )}
               </p>
-              <p><span className="font-medium">College:</span> {main.collegeInstitute}</p>
             </div>
           )}
 
@@ -356,8 +365,17 @@ function ResolvedComplaintCard({
               <p>
                 <span className="font-medium">Complainant:</span>{' '}
                 {main.givenName} {main.middleName ? main.middleName + ' ' : ''}{main.surname}
+                {main.studentNumber && (
+                  <>
+                    {' '}· {main.studentNumber}
+                  </>
+                )}
+                {main.collegeInstitute && (
+                  <>
+                    {' '}· {main.collegeInstitute}
+                  </>
+                )}
               </p>
-              <p><span className="font-medium">College:</span> {main.collegeInstitute}</p>
             </div>
           )}
 
