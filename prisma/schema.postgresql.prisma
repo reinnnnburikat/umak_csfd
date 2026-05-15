@@ -59,6 +59,9 @@ model ServiceRequest {
 
   @@index([status])
   @@index([requestType])
+  @@index([createdAt])
+  @@index([issuedAt])
+  @@index([requestType, status])
 }
 
 model Complaint {
@@ -85,10 +88,15 @@ model Complaint {
   filedCase        String?  // Official filed case declared by admin/director with complainant
   modifications    String?  // JSON string - array of version snapshots
   progressUpdates  String?  // JSON string - array of progress objects
+  dynamicAnswers   String?  // JSON string - dynamic form answers: { [questionId]: value }
+  formVersion      Int?     // Snapshot version of the form config used
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([caseStatus])
+  @@index([createdAt])
+  @@index([category])
+  @@index([complaintCategory])
 }
 
 model DisciplinaryCase {
@@ -135,6 +143,8 @@ model DisciplinaryCase {
   @@index([studentNumber, isCleared])
   @@index([violationCategory])
   @@index([status])
+  @@index([createdAt])
+  @@index([umakEmail])
 }
 
 model OffenseHistory {
@@ -156,6 +166,7 @@ model OffenseHistory {
 
   @@index([studentNumber])
   @@index([disciplinaryCaseId])
+  @@index([violationCategory])
 }
 
 model Announcement {
@@ -172,6 +183,9 @@ model Announcement {
   updatedAt   DateTime  @updatedAt
 
   createdBy   User?     @relation(fields: [createdById], references: [id])
+
+  @@index([postedFrom, postedTo])
+  @@index([visibility])
 }
 
 model Notification {
@@ -204,6 +218,9 @@ model AuditLog {
   createdAt      DateTime @default(now())
 
   performer      User?    @relation(fields: [performedBy], references: [id])
+
+  @@index([createdAt])
+  @@index([module])
 }
 
 model CmsContent {
@@ -239,4 +256,61 @@ model ManagedList {
   extra      String?  // JSON string for additional data
   createdById String?
   createdAt  DateTime @default(now())
+
+  @@index([listType, isActive])
+}
+
+model ServiceToggle {
+  id          String   @id @default(cuid())
+  serviceKey  String   @unique // GMC, UER, CDC, CAC, COMPLAINT, DISCIPLINARY
+  serviceName String
+  description String
+  isActive    Boolean  @default(true)
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@index([serviceKey])
+}
+
+model FormSection {
+  id          String   @id @default(cuid())
+  phase       String   // instructions, complaint_details, etc.
+  title       String   // Section title (e.g. "Classification", "Details")
+  description String?  // Optional section description/help text
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  questions   FormQuestion[]
+
+  @@index([phase, isActive, sortOrder])
+}
+
+model FormQuestion {
+  id            String   @id @default(cuid())
+  phase         String   // instructions, complainant, respondent, complaint_details, review, submitted
+  fieldType     String   // section_header, short_text, long_text, dropdown, radio, checkbox, date, file_upload, number, email
+  label         String   // Question label shown to user
+  helpText      String?  // Helper text below question
+  placeholder   String?  // Placeholder for text inputs
+  required      Boolean  @default(false)
+  roleTarget    String   @default("both") // complainant, respondent, both (only for person phases)
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  choices       String?  // JSON: [{"label":"Male","value":"Male"},{"label":"Female","value":"Female"}]
+  content       String?  // Rich text content (for instructions / section_header)
+  allowMultiple Boolean  @default(false) // Allow multiple entries (e.g., co-complainants)
+  defaultValue  String?  // Default value for the field
+  validation    String?  // JSON: { min, max, pattern, customMessage }
+  sectionId     String?  // Optional: link to a FormSection for grouping
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  section       FormSection?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+
+  @@index([phase, isActive, sortOrder])
+  @@index([isActive])
+  @@index([sectionId])
 }
