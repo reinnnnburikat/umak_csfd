@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const services = body?.services ?? DEFAULT_SERVICES;
 
-    const results = [];
+    const results: Awaited<ReturnType<typeof db.serviceToggle.upsert>>[] = [];
     for (const svc of services) {
       const toggle = await db.serviceToggle.upsert({
         where: { serviceKey: svc.serviceKey },

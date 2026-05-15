@@ -138,9 +138,6 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
-  // CRITICAL for Vercel: Trust the reverse proxy headers (x-forwarded-host, x-forwarded-proto)
-  // Without this, NextAuth can't determine the correct URL on Vercel and throws "Configuration" error
-  trustHost: true,
   cookies: {
     sessionToken: {
       name: "next-auth.session-token",

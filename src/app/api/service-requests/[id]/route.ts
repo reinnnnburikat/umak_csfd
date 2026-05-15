@@ -73,6 +73,7 @@ async function ensureGmcCertificate(existingRequest: {
   classification: string | null;
   formData: string;
   certificatePdfUrl: string | null;
+  trackingToken: string;
 }): Promise<{ pdfBuffer: Buffer; certificatePdfUrl: string; error?: string } | { pdfBuffer: null; certificatePdfUrl: null; error: string }> {
   try {
     // Parse form data
@@ -120,7 +121,7 @@ async function ensureGmcCertificate(existingRequest: {
       fullName: existingRequest.requestorName,
       classification,
       yearLevel: formData.yearLevel || undefined,
-      collegeInstitute: formData.collegeInstitute || existingRequest.collegeInstitute || undefined,
+      collegeInstitute: formData.collegeInstitute || undefined,
       academicYear: configMap['cert_academic_year'] || undefined,
       degreeTitle: formData.degreeTitle || undefined,
       purpose: formData.purpose || 'General',

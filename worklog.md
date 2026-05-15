@@ -646,3 +646,56 @@ Stage Summary:
   2. `src/components/reports/reports-charts.tsx` — NEW: extracted chart component with recharts imports
   3. `src/app/(protected)/dashboard/page.tsx` — uses `next/dynamic` with ssr:false to lazy-load charts
   4. `src/app/(protected)/reports/page.tsx` — uses `next/dynamic` with ssr:false to lazy-load charts
+
+---
+Task ID: system-diagnostic-perf
+Agent: Main Agent
+Task: Full system diagnostic, fix all TypeScript errors, optimize performance across the entire codebase
+
+Work Log:
+- Ran full system diagnostic: checked dev logs, ESLint, TypeScript type checking
+- Found 80+ TypeScript errors across 11 files in src/
+- Found 3 duplicate Socket.IO connections per tab (performance bottleneck)
+- Found contradictory force-dynamic + Cache-Control on 2 API routes
+- Found 5 API routes missing Cache-Control headers
+- Found 4 protected pages missing loading.tsx skeletons
+- Found sequential DB queries that could be parallelized
+
+**TypeScript Fixes (5 parallel agents):**
+1. `src/app/api/disciplinary/route.ts` (56 errors) — Hoisted 7 variable declarations (body, category, offenseCount, session, statusLabel, defaultAction, sanitizedFileUrls) before outer try block so they're accessible in catch retry path. Fixed unknown type casts.
+2. `src/app/api/service-requests/[id]/route.ts` (2 errors) — Removed non-existent `collegeInstitute` from ensureGmcCertificate usage, kept trackingToken
+3. `src/app/api/service-requests/batch/route.ts` (2 errors) — Same fix as above
+4. `src/app/api/certificate-config/route.ts` (1 error) — Fixed `results` array typed as `never[]`
+5. `src/app/api/service-toggles/route.ts` (1 error) — Fixed `results` array typed as `never[]`
+6. `src/app/api/debug/db/route.ts` (1 error) — Changed `let error = null` to `let error: string | null = null`
+7. `src/lib/auth.ts` (1 error) — Removed `trustHost: true` (NextAuth v5 option not supported in v4)
+8. `src/app/(public)/services/uniform-exemption/page.tsx` (37 errors) — Fixed Category type union, resolver type cast, control type cast for react-hook-form
+9. `src/app/(protected)/complaints/[id]/evaluate/page.tsx` (4 errors) — Wrapped handler functions to bind type parameter
+10. `src/components/reports/reports-charts.tsx` (1 error) — Fixed Bar dataKey mismatch with actual API data shape
+11. `src/app/(public)/services/child-admission/page.tsx` (2 errors) — Fixed unknown[] type to FormValues['children']
+12. `src/app/(public)/services/good-moral/page.tsx` (11 errors) — Fixed Control union type, getValues type mismatch
+
+**Performance Optimizations (parallel agent):**
+1. Removed `force-dynamic` from `/api/service-requests/list` and `/api/complaints` — Cache-Control headers now effective
+2. Parallelized sequential DB queries in `/api/disciplinary/lookup` — 2 findMany calls wrapped in Promise.all
+3. Created 4 loading.tsx skeleton files (announcements, profile, users, service-controls)
+4. Added Cache-Control headers to 5 routes (form-questions, form-sections, faqs, service-availability, complaint-form/config)
+
+**Socket.IO Deduplication (parallel agent):**
+1. Refactored `notification-provider.tsx` to consume from singleton `use-socket.ts`
+2. Deleted dead code `use-notifications-socket.ts` (zero consumers)
+3. Result: 3 connections per tab → 1 connection per tab
+
+**Complaint Blank Space Fix:**
+1. Complaint detail page: Skip deleted CMS questions entirely (no "Deleted Field" fallback)
+2. Complaint detail page: Trim whitespace from all dynamic field values before rendering
+3. Complaint list page: Added name validity check in `getMainComplainant()` — returns null if no name data
+
+Stage Summary:
+- **0 TypeScript errors** in src/ app code (only 1 in non-critical skills/ dir)
+- **0 ESLint errors, 0 warnings**
+- **Socket.IO: 3→1 connections** per tab (major perf improvement)
+- **Cache-Control now effective** on 7 API routes (was broken by force-dynamic on 2)
+- **4 new loading skeletons** for better perceived performance
+- **DB query parallelization** in disciplinary lookup
+- **Complaint view fully dynamic** — no blank spaces from deleted form fields

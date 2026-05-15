@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { getSessionFromRequest } from '@/lib/session';
+import { getSessionFromRequest, type Session } from '@/lib/session';
 import {
   calculateOffenseCount,
   getStatusLabel,
@@ -143,8 +143,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Hoisted declarations — needed so the retry path in the catch block can access them
+  let session: Session | null = null;
+  let body: Record<string, unknown> = {};
+  let category = '';
+  let offenseCount = 1;
+  let statusLabel = '';
+  let defaultAction = '';
+  let sanitizedFileUrls: string | null = null;
+
   try {
-    const session = await getSessionFromRequest(request);
+    session = await getSessionFromRequest(request);
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -154,7 +163,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden: Only staff and administrators can create disciplinary cases.' }, { status: 403 });
     }
 
-    let body: Record<string, unknown>;
     try {
       body = await request.json();
     } catch {
@@ -175,7 +183,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Normalize OTHERS to OTHER
-    let category = body.violationCategory;
+    category = String(body.violationCategory);
     if (category === 'OTHERS') category = 'OTHER';
 
     if (!VALID_CATEGORIES.includes(category)) {
@@ -196,7 +204,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Calculate offense count using shared logic
-    let offenseCount: number;
     try {
       offenseCount = await calculateOffenseCount(
         String(body.studentNumber),
@@ -226,8 +233,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Determine the status label and action based on offense count
-    const statusLabel = getStatusLabel(offenseCount);
-    const defaultAction = getActionForOffense(category, offenseCount);
+    statusLabel = getStatusLabel(offenseCount);
+    defaultAction = getActionForOffense(category, offenseCount);
 
     // Sanitize fileUrls — ensure it's an array of strings
     // IMPORTANT: Filter out base64 data URLs (data:...) which can be extremely large
@@ -243,7 +250,7 @@ export async function POST(request: NextRequest) {
         })
       : [];
 
-    const sanitizedFileUrls = rawFileUrls.length > 0 ? JSON.stringify(rawFileUrls) : null;
+    sanitizedFileUrls = rawFileUrls.length > 0 ? JSON.stringify(rawFileUrls) : null;
 
     const newCase = await db.disciplinaryCase.create({
       data: {
@@ -316,7 +323,7 @@ export async function POST(request: NextRequest) {
           module: 'disciplinary',
           recordId: newCase.id,
           newValue: JSON.stringify(newCase),
-          performerName: session.user.fullName || body.officerName || 'System',
+          performerName: session.user.fullName || String(body.officerName || 'System'),
           performerRole: session.user.role,
           performedBy: session.user.id,
         },
@@ -359,6 +366,14 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('[DISCIPLINARY POST] Failed to create disciplinary case:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
+
+    // Session/body must have been populated for the retry path to be valid
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Failed to create disciplinary case', detail: message },
+        { status: 500 },
+      );
+    }
 
     // If the error is about a missing column, try auto-migration and retry once
     if (message.includes('does not exist') && message.includes('column')) {
@@ -409,7 +424,7 @@ export async function POST(request: NextRequest) {
                   module: 'disciplinary',
                   recordId: newCase.id,
                   newValue: JSON.stringify(newCase),
-                  performerName: session.user.fullName || body.officerName || 'System',
+                  performerName: session.user.fullName || String(body.officerName || 'System'),
                   performerRole: session.user.role,
                   performedBy: session.user.id,
                 },

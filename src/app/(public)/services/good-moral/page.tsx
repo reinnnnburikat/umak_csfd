@@ -552,10 +552,10 @@ function GoodMoralPageContent() {
     const activeForm = classification === 'currently_enrolled' ? enrolledForm
       : classification === 'graduate' ? graduateForm
       : formerStudentForm;
-    const currentCI = activeForm.getValues('collegeInstitute');
-    const currentCIO = activeForm.getValues('collegeInstituteOther');
+    const currentCI = (activeForm as any).getValues('collegeInstitute') as string;
+    const currentCIO = (activeForm as any).getValues('collegeInstituteOther') as string | undefined;
     if (isValid && currentCI === 'Other' && !currentCIO?.trim()) {
-      activeForm.setError('collegeInstituteOther', { message: 'Please specify your College/Institute' });
+      (activeForm.setError as (name: string, error: { message: string }) => void)('collegeInstituteOther', { message: 'Please specify your College/Institute' });
       return;
     }
     if (isValid) {
@@ -839,9 +839,11 @@ function GoodMoralPageContent() {
       showYearLevel: boolean,
       showGraduateFields: boolean,
       showFormerFields: boolean,
-    ) => (
+    ) => {
+      const fc = form.control as any;
+      return (
       <>
-        <FormField control={form.control} name="fullName" render={({ field }) => (
+        <FormField control={fc} name="fullName" render={({ field }) => (
           <FormItem>
             <FormLabel>Full Name <span className="text-destructive">*</span></FormLabel>
             <FormControl><Input placeholder="Enter your full name" {...field} /></FormControl>
@@ -850,7 +852,7 @@ function GoodMoralPageContent() {
         )} />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <FormField control={form.control} name="sex" render={({ field }) => (
+          <FormField control={fc} name="sex" render={({ field }) => (
             <FormItem>
               <FormLabel>Sex <span className="text-destructive">*</span></FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
@@ -909,17 +911,17 @@ function GoodMoralPageContent() {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <FormField control={form.control} name="studentNumber" render={({ field }) => (
+          <FormField control={fc} name="studentNumber" render={({ field }) => (
             <FormItem>
               <FormLabel>UMak Student Number <span className="text-destructive">*</span></FormLabel>
               <FormControl><Input placeholder="e.g., K12345678" {...field} /></FormControl>
               <FormMessage />
             </FormItem>
           )} />
-          <FormField control={form.control} name="collegeInstitute" render={({ field }) => (
+          <FormField control={fc} name="collegeInstitute" render={({ field }) => (
             <FormItem>
               <FormLabel>College/Institute <span className="text-destructive">*</span></FormLabel>
-              <Select onValueChange={(v) => { field.onChange(v); if (v !== 'Other') form.setValue('collegeInstituteOther', ''); }} value={field.value}>
+              <Select onValueChange={(v) => { field.onChange(v); if (v !== 'Other') (form.setValue as any)('collegeInstituteOther', ''); }} value={field.value}>
                 <FormControl><SelectTrigger className="w-full overflow-hidden"><SelectValue placeholder="Select college/institute" /></SelectTrigger></FormControl>
                 <SelectContent>
                   {colleges.map((c) => (
@@ -950,7 +952,7 @@ function GoodMoralPageContent() {
           )} />
         )}
 
-        <FormField control={form.control} name="email" render={({ field }) => (
+        <FormField control={fc} name="email" render={({ field }) => (
           <FormItem>
             <FormLabel>Email Address <span className="text-destructive">*</span></FormLabel>
             <FormControl><Input type="email" placeholder="you@umak.edu.ph" {...field} /></FormControl>
@@ -958,7 +960,7 @@ function GoodMoralPageContent() {
           </FormItem>
         )} />
 
-        <FormField control={form.control} name="purpose" render={({ field }) => (
+        <FormField control={fc} name="purpose" render={({ field }) => (
           <FormItem>
             <FormLabel>Purpose <span className="text-destructive">*</span></FormLabel>
             <Select onValueChange={field.onChange} value={field.value}>
@@ -982,7 +984,7 @@ function GoodMoralPageContent() {
         />
 
         <div className="pt-2">
-          <FormField control={form.control} name="signaturePreference" render={({ field }) => (
+          <FormField control={fc} name="signaturePreference" render={({ field }) => (
             <FormItem>
               <FormLabel>
                 Does this document require an electronic signature (e-sign) or a wet signature?
@@ -1027,7 +1029,8 @@ function GoodMoralPageContent() {
           )} />
         </div>
       </>
-    );
+      );
+    };
 
     const getForm = () => {
       if (classification === 'currently_enrolled') {

@@ -194,7 +194,7 @@ function ChildAdmissionPageContent() {
     setFormData: (data) => {
       const d = data as Record<string, unknown>;
       const { children: __children, ...formValues } = d as Record<string, unknown>;
-      form.reset({ ...formValues, children: (__children as unknown[]) || form.getValues().children });
+      form.reset({ ...formValues, children: (__children as FormValues['children']) || form.getValues().children });
     },
   });
 
@@ -203,7 +203,7 @@ function ChildAdmissionPageContent() {
     if (!loaded) return;
     const d = loaded.formData as Record<string, unknown>;
     const { children: __children, ...formValues } = d as Record<string, unknown>;
-    form.reset({ ...formValues, children: (__children as unknown[]) || form.getValues().children });
+    form.reset({ ...formValues, children: (__children as FormValues['children']) || form.getValues().children });
     setStep(loaded.step as Step);
   };
 

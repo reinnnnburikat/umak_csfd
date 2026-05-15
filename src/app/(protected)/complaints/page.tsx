@@ -43,7 +43,10 @@ function getCategoryClass(category: string | null): string {
 function getMainComplainant(complainantsJson: unknown): PersonInfo | null {
   try {
     const list: PersonInfo[] = JSON.parse(complainantsJson as string);
-    return list[0] || null;
+    const first = list[0] || null;
+    // Only return if the person has at least a name
+    if (first && (first.givenName || first.surname)) return first;
+    return null;
   } catch {
     return null;
   }

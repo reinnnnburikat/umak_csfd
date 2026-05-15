@@ -83,12 +83,18 @@ export async function GET() {
     });
 
     if (faqs.length === 0) {
-      return NextResponse.json(fallbackFaqs);
+      const fallbackResponse = NextResponse.json(fallbackFaqs);
+      fallbackResponse.headers.set('Cache-Control', 's-maxage=120, stale-while-revalidate=300');
+      return fallbackResponse;
     }
 
-    return NextResponse.json(faqs);
+    const response = NextResponse.json(faqs);
+    response.headers.set('Cache-Control', 's-maxage=120, stale-while-revalidate=300');
+    return response;
   } catch (error) {
     console.error('Failed to fetch FAQs:', error);
-    return NextResponse.json(fallbackFaqs);
+    const fallbackResponse = NextResponse.json(fallbackFaqs);
+    fallbackResponse.headers.set('Cache-Control', 's-maxage=120, stale-while-revalidate=300');
+    return fallbackResponse;
   }
 }

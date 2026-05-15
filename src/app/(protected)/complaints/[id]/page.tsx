@@ -329,18 +329,18 @@ export default function ComplaintDetailPage({
             const alreadyShown = new Set<string>();
 
             // 1. From dynamicAnswers (resolve question IDs to labels)
-            if (Object.keys(dynamicAnswersMap).length > 0) {
+            // Only show fields whose questions still exist in CMS — skip deleted questions
+            if (Object.keys(dynamicAnswersMap).length > 0 && formQuestions.length > 0) {
               const qMap = new Map(formQuestions.map((q) => [q.id, q]));
               for (const [qId, value] of Object.entries(dynamicAnswersMap)) {
-                if (!value) continue;
+                if (!value || !value.trim()) continue;
                 const q = qMap.get(qId);
+                // Only show if the question still exists in CMS
                 if (q && !alreadyShown.has(q.label)) {
-                  dynamicFields.push({ label: q.label, value });
+                  dynamicFields.push({ label: q.label, value: value.trim() });
                   alreadyShown.add(q.label);
-                } else if (!q && value) {
-                  dynamicFields.push({ label: `Deleted Field (${qId.slice(0, 8)}...)`, value });
-                  alreadyShown.add(`deleted-${qId}`);
                 }
+                // Skip deleted questions entirely — don't show "Deleted Field" entries
               }
             }
 
@@ -359,8 +359,9 @@ export default function ComplaintDetailPage({
             ];
 
             for (const field of fixedFieldEntries) {
-              if (field.value && !alreadyShown.has(field.label)) {
-                dynamicFields.push({ label: field.label, value: field.value });
+              const trimmed = field.value?.trim();
+              if (trimmed && !alreadyShown.has(field.label)) {
+                dynamicFields.push({ label: field.label, value: trimmed });
                 alreadyShown.add(field.label);
               }
             }

@@ -29,7 +29,7 @@ export async function GET() {
     let tableInfo = "unknown";
     let userCount = -1;
     let users: Array<{ email: string; role: string; fullName: string }> = [];
-    let error = null;
+    let error: string | null = null;
 
     try {
       const result = await db.$queryRaw<Array<{ exists: boolean }>>`

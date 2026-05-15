@@ -57,11 +57,13 @@ export async function GET() {
       phaseSections[s.phase].push(s);
     }
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       version: 1,
       phases,
       sections: phaseSections,
     });
+    response.headers.set('Cache-Control', 's-maxage=60, stale-while-revalidate=120');
+    return response;
   } catch (error) {
     console.error('Failed to fetch complaint form config:', error);
     return NextResponse.json(

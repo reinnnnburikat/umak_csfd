@@ -595,8 +595,8 @@ export default function ComplaintEvaluatePage({
                 person={person}
                 index={i}
                 type="complainant"
-                onEdit={handleEditPerson}
-                onDelete={handleDeletePerson}
+                onEdit={() => handleEditPerson(i, 'complainant')}
+                onDelete={() => handleDeletePerson(i, 'complainant')}
               />
             ))
           )}
@@ -624,8 +624,8 @@ export default function ComplaintEvaluatePage({
                 person={person}
                 index={i}
                 type="respondent"
-                onEdit={handleEditPerson}
-                onDelete={handleDeletePerson}
+                onEdit={() => handleEditPerson(i, 'respondent')}
+                onDelete={() => handleDeletePerson(i, 'respondent')}
               />
             ))
           )}

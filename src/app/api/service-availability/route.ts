@@ -43,11 +43,13 @@ export async function GET() {
       }
     }
 
-    return NextResponse.json(availability);
+    const response = NextResponse.json(availability);
+    response.headers.set('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+    return response;
   } catch (error) {
     console.error('Failed to fetch service availability:', error);
     // Fail open: return all services as available
-    return NextResponse.json({
+    const fallbackResponse = NextResponse.json({
       GMC: true,
       UER: true,
       CDC: true,
@@ -55,5 +57,7 @@ export async function GET() {
       COMPLAINT: true,
       DISCIPLINARY: true,
     });
+    fallbackResponse.headers.set('Cache-Control', 's-maxage=30, stale-while-revalidate=60');
+    return fallbackResponse;
   }
 }

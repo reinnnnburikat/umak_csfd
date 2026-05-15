@@ -6,7 +6,6 @@ import { toTitleCase } from '@/lib/text-format';
 import { notifyStaff, signalDataRefresh } from '@/lib/notifications';
 
 export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
 
 interface PersonInfo {
   givenName: string;

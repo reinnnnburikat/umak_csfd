@@ -23,17 +23,17 @@ export async function GET(request: NextRequest) {
 
     const normalizedStudentNumber = studentNumber.trim();
 
-    // Get all disciplinary cases for this student (case-insensitive)
-    const cases = await db.disciplinaryCase.findMany({
-      where: { studentNumber: normalizedStudentNumber },
-      orderBy: { dateOfInfraction: 'desc' },
-    });
-
-    // Get offense history
-    const offenseHistory = await db.offenseHistory.findMany({
-      where: { studentNumber: normalizedStudentNumber },
-      orderBy: { createdAt: 'desc' },
-    });
+    // Fetch cases and offense history in parallel
+    const [cases, offenseHistory] = await Promise.all([
+      db.disciplinaryCase.findMany({
+        where: { studentNumber: normalizedStudentNumber },
+        orderBy: { dateOfInfraction: 'desc' },
+      }),
+      db.offenseHistory.findMany({
+        where: { studentNumber: normalizedStudentNumber },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
 
     // Calculate summary
     const totalOffenses = offenseHistory.length;

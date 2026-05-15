@@ -1,8 +1,8 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/providers/session-provider';
+import { useSocket } from '@/hooks/use-socket';
 import { toast } from 'sonner';
 
 export interface NotificationEvent {
@@ -45,12 +45,11 @@ export function useNotificationContext() {
 }
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  const { user, isAuthenticated } = useAuth();
-  const socketRef = useRef<Socket | null>(null);
+  const { isAuthenticated } = useAuth();
+  const { isConnected, on } = useSocket();
   const [unreadCount, setUnreadCount] = useState(0);
   const [lastNotification, setLastNotification] = useState<NotificationEvent | null>(null);
   const [lastRefreshEvent, setLastRefreshEvent] = useState<DataRefreshEvent | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -71,34 +70,11 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     return () => clearTimeout(timer);
   }, [isAuthenticated, refreshUnreadCount]);
 
-  // Socket.IO connection
+  // Subscribe to Socket.IO events via the singleton connection
   useEffect(() => {
-    if (!isAuthenticated || !user?.id) return;
+    if (!isAuthenticated) return;
 
-    const socketInstance = io('/?XTransformPort=3003', {
-      transports: ['websocket', 'polling'],
-      forceNew: true,
-      reconnection: true,
-      reconnectionAttempts: 10,
-      reconnectionDelay: 2000,
-      timeout: 10000,
-    });
-
-    socketRef.current = socketInstance;
-
-    socketInstance.on('connect', () => {
-      setIsConnected(true);
-      socketInstance.emit('authenticate', {
-        userId: user.id,
-        role: user.role,
-      });
-    });
-
-    socketInstance.on('disconnect', () => {
-      setIsConnected(false);
-    });
-
-    socketInstance.on('notification', (notification: NotificationEvent) => {
+    const cleanupNotification = on('notification', (notification: NotificationEvent) => {
       setLastNotification(notification);
       setUnreadCount((prev) => prev + 1);
 
@@ -119,15 +95,15 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       });
     });
 
-    socketInstance.on('data-refresh', (event: DataRefreshEvent) => {
+    const cleanupRefresh = on('data-refresh', (event: DataRefreshEvent) => {
       setLastRefreshEvent(event);
     });
 
     return () => {
-      socketInstance.disconnect();
-      socketRef.current = null;
+      cleanupNotification();
+      cleanupRefresh();
     };
-  }, [isAuthenticated, user?.id, user?.role]);
+  }, [on, isAuthenticated]);
 
   // Periodic sync of unread count (fallback for multi-tab consistency)
   useEffect(() => {

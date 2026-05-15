@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSession } from '@/lib/session';
 
-export const dynamic = 'force-dynamic';
-
 // Normal flow statuses
 const ACTIVE_STATUSES = ['Submitted', 'For Review', 'For Issuance', 'Issued', 'Hold', 'Rejected'];
 // Legacy statuses that should map to new ones

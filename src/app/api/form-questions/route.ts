@@ -42,7 +42,9 @@ export async function GET(request: NextRequest) {
       orderBy: { sortOrder: 'asc' },
     });
 
-    return NextResponse.json({ data: questions });
+    const response = NextResponse.json({ data: questions });
+    response.headers.set('Cache-Control', 's-maxage=60, stale-while-revalidate=120');
+    return response;
   } catch (error) {
     console.error('Failed to fetch form questions:', error);
     return NextResponse.json(

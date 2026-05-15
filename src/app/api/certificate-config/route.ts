@@ -68,7 +68,7 @@ export async function PUT(request: NextRequest) {
       items.push({ key: 'cert_esignature_url', label: 'Certificate E-Signature URL', value: body.certEsignatureUrl });
     }
 
-    const results = [];
+    const results: Awaited<ReturnType<typeof db.cmsContent.upsert>>[] = [];
     for (const item of items) {
       const content = await db.cmsContent.upsert({
         where: { key: item.key },

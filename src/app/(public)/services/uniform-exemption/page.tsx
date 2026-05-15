@@ -214,11 +214,13 @@ type FormValues = z.infer<typeof workingStudentSchema> &
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-function getCategoryLabel(key: Category): string {
+function getCategoryLabel(key: Category | ''): string {
+  if (!key) return '';
   return CATEGORIES.find((c) => c.key === key)?.label ?? key;
 }
 
-function getCategoryIcon(key: Category): React.ReactNode {
+function getCategoryIcon(key: Category | ''): React.ReactNode {
+  if (!key) return <HelpCircle className="size-5" />;
   return CATEGORIES.find((c) => c.key === key)?.icon ?? <HelpCircle className="size-5" />;
 }
 
@@ -299,7 +301,7 @@ function UniformExemptionPageContent() {
   const [loadingLists, setLoadingLists] = useState(true);
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(category ? categorySchemas[category] : baseInfoSchema),
+    resolver: zodResolver(category ? categorySchemas[category] : (baseInfoSchema as any)) as any,
     defaultValues: {
       fullName: '',
       sex: '',
@@ -327,6 +329,8 @@ function UniformExemptionPageContent() {
     },
     mode: 'onBlur',
   });
+
+  const control = form.control as any;
 
   // Fetch dropdown lists
   useEffect(() => {
@@ -641,7 +645,7 @@ function UniformExemptionPageContent() {
       return (
         <>
           <FormField
-            control={form.control}
+            control={control}
             name="employerName"
             render={({ field }) => (
               <FormItem>
@@ -656,7 +660,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="positionJobTitle"
             render={({ field }) => (
               <FormItem>
@@ -671,7 +675,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="durationOfEmployment"
             render={({ field }) => (
               <FormItem>
@@ -686,7 +690,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="reasonForExemption"
             render={({ field }) => (
               <FormItem>
@@ -712,7 +716,7 @@ function UniformExemptionPageContent() {
       return (
         <>
           <FormField
-            control={form.control}
+            control={control}
             name="organizationOfficeName"
             render={({ field }) => (
               <FormItem>
@@ -727,7 +731,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="eventName"
             render={({ field }) => (
               <FormItem>
@@ -742,7 +746,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="eventDate"
             render={({ field }) => (
               <FormItem>
@@ -757,7 +761,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="roleInEvent"
             render={({ field }) => (
               <FormItem>
@@ -772,7 +776,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="reasonForExemption"
             render={({ field }) => (
               <FormItem>
@@ -798,7 +802,7 @@ function UniformExemptionPageContent() {
       return (
         <>
           <FormField
-            control={form.control}
+            control={control}
             name="companyName"
             render={({ field }) => (
               <FormItem>
@@ -813,7 +817,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="positionRole"
             render={({ field }) => (
               <FormItem>
@@ -828,7 +832,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="ojtDuration"
             render={({ field }) => (
               <FormItem>
@@ -843,7 +847,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="programCourseRequirement"
             render={({ field }) => (
               <FormItem>
@@ -869,7 +873,7 @@ function UniformExemptionPageContent() {
       return (
         <>
           <FormField
-            control={form.control}
+            control={control}
             name="organizationCouncilName"
             render={({ field }) => (
               <FormItem>
@@ -884,7 +888,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="shirtDesignDescription"
             render={({ field }) => (
               <FormItem>
@@ -903,7 +907,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="eventOccasion"
             render={({ field }) => (
               <FormItem>
@@ -925,7 +929,7 @@ function UniformExemptionPageContent() {
       return (
         <>
           <FormField
-            control={form.control}
+            control={control}
             name="specifyCategory"
             render={({ field }) => (
               <FormItem>
@@ -940,7 +944,7 @@ function UniformExemptionPageContent() {
             )}
           />
           <FormField
-            control={form.control}
+            control={control}
             name="reasonForExemption"
             render={({ field }) => (
               <FormItem>
@@ -1333,7 +1337,7 @@ function UniformExemptionPageContent() {
                 <CardContent className="pt-0">
                   <div className="space-y-5">
                     <FormField
-                      control={form.control}
+                      control={control}
                       name="fullName"
                       render={({ field }) => (
                         <FormItem>
@@ -1350,7 +1354,7 @@ function UniformExemptionPageContent() {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                       <FormField
-                        control={form.control}
+                        control={control}
                         name="sex"
                         render={({ field }) => (
                           <FormItem>
@@ -1374,7 +1378,7 @@ function UniformExemptionPageContent() {
                       />
 
                       <FormField
-                        control={form.control}
+                        control={control}
                         name="yearLevel"
                         render={({ field }) => (
                           <FormItem>
@@ -1402,7 +1406,7 @@ function UniformExemptionPageContent() {
                     </div>
 
                     <FormField
-                      control={form.control}
+                      control={control}
                       name="studentNumber"
                       render={({ field }) => (
                         <FormItem>
@@ -1418,7 +1422,7 @@ function UniformExemptionPageContent() {
                     />
 
                     <FormField
-                      control={form.control}
+                      control={control}
                       name="collegeInstitute"
                       render={({ field }) => (
                         <FormItem>
@@ -1444,7 +1448,7 @@ function UniformExemptionPageContent() {
                       )}
                     />
                     <ConditionalOtherField
-                      control={form.control}
+                      control={control}
                       watchName="collegeInstitute"
                       triggerValue="Other"
                       inputName="collegeInstituteOther"
@@ -1453,7 +1457,7 @@ function UniformExemptionPageContent() {
                     />
 
                     <FormField
-                      control={form.control}
+                      control={control}
                       name="email"
                       render={({ field }) => (
                         <FormItem>

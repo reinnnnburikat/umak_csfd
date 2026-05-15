@@ -28,7 +28,7 @@ const STATUS_COLORS = {
 
 // ── Props ──
 export interface ReportsChartsProps {
-  barChartData: { name: string; New: number; Processing: number; Issued: number; Hold: number; Rejected: number }[];
+  barChartData: { name: string; Submitted: number; 'For Review': number; 'For Issuance': number; Hold: number; Rejected: number }[];
   pieChartData: { name: string; value: number; color: string }[];
   trendData: { month: string; requests: number; complaints: number; resolved: number }[];
 }
@@ -63,9 +63,9 @@ export default function ReportsCharts({
                     }}
                   />
                   <Legend wrapperStyle={{ fontSize: '12px' }} />
-                  <Bar dataKey="New" stackId="a" fill={STATUS_COLORS.New} radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="Processing" stackId="a" fill={STATUS_COLORS.Processing} />
-                  <Bar dataKey="Issued" stackId="a" fill={STATUS_COLORS.Issued} />
+                  <Bar dataKey="Submitted" stackId="a" fill={STATUS_COLORS.New} radius={[0, 0, 0, 0]} />
+                  <Bar dataKey="For Review" stackId="a" fill={STATUS_COLORS.Processing} />
+                  <Bar dataKey="For Issuance" stackId="a" fill={STATUS_COLORS.Issued} />
                   <Bar dataKey="Hold" stackId="a" fill={STATUS_COLORS.Hold} />
                   <Bar dataKey="Rejected" stackId="a" fill={STATUS_COLORS.Rejected} radius={[4, 4, 0, 0]} />
                 </BarChart>
